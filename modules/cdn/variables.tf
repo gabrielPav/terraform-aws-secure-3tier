@@ -53,6 +53,11 @@ variable "enable_logging" {
   default     = true
 }
 
+variable "s3_access_logs_bucket_domain" {
+  description = "S3 access logs bucket domain name for CloudFront logging"
+  type        = string
+}
+
 variable "enable_waf" {
   description = "Enable WAF"
   type        = bool

@@ -198,7 +198,8 @@ module "cdn" {
   environment           = var.environment
   alb_dns_name          = module.load_balancer.alb_dns_name
   alb_zone_id           = module.load_balancer.alb_zone_id
-  s3_bucket_domain_name = module.storage.s3_bucket_domain_name
+  s3_bucket_domain_name        = module.storage.s3_bucket_domain_name
+  s3_access_logs_bucket_domain = module.storage.s3_access_logs_bucket_domain
 
   # CloudFront Configuration
   enable_cloudfront  = var.enable_cloudfront

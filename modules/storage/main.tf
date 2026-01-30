@@ -77,7 +77,8 @@ resource "aws_s3_bucket_versioning" "s3_access_logs" {
   bucket = aws_s3_bucket.s3_access_logs.id
 
   versioning_configuration {
-    status = "Enabled"
+    status     = "Enabled"
+    mfa_delete = "Enabled"
   }
 }
 
@@ -164,6 +165,14 @@ resource "aws_s3_bucket_logging" "main" {
 
   target_bucket = aws_s3_bucket.s3_access_logs.id
   target_prefix = "main-bucket/"
+}
+
+# S3 access logs bucket - self logging configuration
+resource "aws_s3_bucket_logging" "s3_access_logs" {
+  bucket = aws_s3_bucket.s3_access_logs.id
+
+  target_bucket = aws_s3_bucket.s3_access_logs.id
+  target_prefix = "self-access-logs/"
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "main" {

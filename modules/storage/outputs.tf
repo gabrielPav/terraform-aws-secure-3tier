@@ -42,3 +42,8 @@ output "s3_access_logs_bucket_arn" {
   description = "Centralized S3 access logs bucket ARN"
   value       = aws_s3_bucket.s3_access_logs.arn
 }
+
+output "s3_access_logs_bucket_domain" {
+  description = "Centralized S3 access logs bucket domain name"
+  value       = aws_s3_bucket.s3_access_logs.bucket_domain_name
+}

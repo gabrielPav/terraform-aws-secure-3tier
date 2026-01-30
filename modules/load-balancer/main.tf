@@ -117,7 +117,7 @@ resource "aws_lb" "main" {
   enable_deletion_protection       = var.enable_deletion_protection
   enable_http2                     = var.enable_http2
   enable_cross_zone_load_balancing = var.enable_cross_zone
-  drop_invalid_header_fields       = var.enable_drop_invalid_headers
+  drop_invalid_header_fields       = true
 
   access_logs {
     bucket  = var.enable_access_logs ? aws_s3_bucket.alb_logs[0].id : null

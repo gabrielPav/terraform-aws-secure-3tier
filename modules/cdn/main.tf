@@ -105,9 +105,9 @@ resource "aws_cloudfront_distribution" "main" {
   dynamic "logging_config" {
     for_each = var.enable_logging ? [1] : []
     content {
-      bucket          = "${var.project_name}-${var.environment}-cloudfront-logs.s3.amazonaws.com"
+      bucket          = var.s3_access_logs_bucket_domain
       include_cookies = false
-      prefix          = "cloudfront"
+      prefix          = "cloudfront/"
     }
   }
 
