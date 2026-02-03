@@ -44,6 +44,7 @@ module "networking" {
   enable_s3_endpoint           = true
   enable_dynamodb_endpoint     = true
   enable_interface_endpoints   = var.enable_vpc_endpoints
+  enable_eic_endpoint          = var.enable_eic_endpoint
   kms_key_arn                  = module.security.kms_key_arn
   tags                         = var.common_tags
 }
@@ -155,6 +156,9 @@ module "compute" {
   # IAM
   iam_instance_profile   = module.security.ec2_instance_profile_name
   alb_security_group_ids = [module.load_balancer.alb_security_group_id]
+
+  # EC2 Instance Connect Endpoint for SSH access
+  eic_security_group_id = module.networking.eic_endpoint_security_group_id
 
   # Security group for RDS egress
   allowed_security_group_id = [module.database.rds_security_group_id]

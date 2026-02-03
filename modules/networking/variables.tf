@@ -50,6 +50,12 @@ variable "enable_interface_endpoints" {
   default     = {}
 }
 
+variable "enable_eic_endpoint" {
+  description = "Enable EC2 Instance Connect Endpoint for secure SSH access to private instances"
+  type        = bool
+  default     = true
+}
+
 variable "kms_key_arn" {
   description = "KMS key ARN for CloudWatch log group encryption"
   type        = string

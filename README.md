@@ -11,6 +11,7 @@ A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. Wh
 - **SSL/TLS**: Automatic ACM certificate provisioning with DNS validation
 - **CDN**: CloudFront distribution with S3 origin
 - **Security**: IAM roles, KMS encryption, CloudTrail logging, security groups
+- **Instance Access**: EC2 Instance Connect Endpoint for secure SSH access without public IPs
 - **Monitoring**: CloudWatch alarms and dashboards
 
 ## Prerequisites
@@ -218,6 +219,60 @@ alb_certificate_arn = "arn:aws:acm:us-east-1:123456789:certificate/abcd-1234-abc
 
 ---
 
+## Connecting to EC2 Instances
+
+EC2 instances are deployed in private subnets without public IP addresses. This project uses **EC2 Instance Connect Endpoint (EIC)** to provide secure SSH access without requiring a bastion host or VPN.
+
+### Prerequisites
+
+- AWS CLI v2.12.0 or later
+- Appropriate IAM permissions (`ec2-instance-connect:OpenTunnel`, `ec2:DescribeInstances`)
+
+### Connect via AWS CLI
+
+```bash
+# Get an instance ID from the Auto Scaling Group
+INSTANCE_ID=$(aws autoscaling describe-auto-scaling-groups \
+  --auto-scaling-group-names "web-app-production-asg" \
+  --query 'AutoScalingGroups[0].Instances[0].InstanceId' \
+  --output text)
+
+# Connect using EC2 Instance Connect Endpoint
+aws ec2-instance-connect ssh --instance-id $INSTANCE_ID --connection-type eice
+```
+
+### Connect via SSH with EIC Tunnel
+
+You can also use a standard SSH client by opening a tunnel:
+
+```bash
+# Open a tunnel (runs in background)
+aws ec2-instance-connect open-tunnel \
+  --instance-id $INSTANCE_ID \
+  --local-port 2222 &
+
+# Connect via SSH
+ssh -p 2222 ec2-user@localhost
+```
+
+### Security Notes
+
+- No SSH port (22) is exposed to the internet
+- SSH access is only allowed from the EIC Endpoint's security group
+- All connections are authenticated via IAM
+- Connection logs are recorded in CloudTrail
+
+### Disabling EIC Endpoint
+
+If you don't need SSH access to instances, you can disable the EIC Endpoint:
+
+```hcl
+# terraform.tfvars
+enable_eic_endpoint = false
+```
+
+---
+
 ## Input Variables
 
 | Name | Description | Type | Default | Required |
@@ -226,6 +281,7 @@ alb_certificate_arn = "arn:aws:acm:us-east-1:123456789:certificate/abcd-1234-abc
 | `create_route53_zone` | Create new Route53 zone (`true`) or use existing (`false`) | `bool` | `false` | No |
 | `alb_certificate_arn` | ARN of existing ACM certificate | `string` | `""` | No |
 | `redirect_http_to_https` | Redirect HTTP to HTTPS when enabled | `bool` | `true` | No |
+| `enable_eic_endpoint` | Enable EC2 Instance Connect Endpoint for SSH access | `bool` | `true` | No |
 | `project_name` | Name of the project | `string` | `"web-app"` | No |
 | `environment` | Environment (dev/staging/production) | `string` | `"production"` | No |
 | `aws_region` | AWS region for resources | `string` | `"us-east-1"` | No |
@@ -243,6 +299,7 @@ See `variables.tf` for the complete list of available variables.
 | `route53_name_servers` | Nameservers to configure (only if zone was created) |
 | `acm_certificate_arn` | ARN of the SSL certificate |
 | `cloudfront_domain_name` | CloudFront distribution domain |
+| `eic_endpoint_id` | EC2 Instance Connect Endpoint ID for SSH access |
 
 ## Troubleshooting
 
@@ -293,6 +350,7 @@ See `variables.tf` for the complete list of available variables.
 - Security groups follow least-privilege principle
 - CloudTrail logging is enabled
 - S3 buckets block public access
+- EC2 instances have no public IPs; SSH access via IAM-authenticated EIC Endpoint only
 
 ## Cost Considerations
 
@@ -304,6 +362,10 @@ This infrastructure includes resources that incur AWS charges:
 - Route53 hosted zone ($0.50/month)
 - CloudFront distribution
 - Data transfer costs
+
+**Free tier resources:**
+- EC2 Instance Connect Endpoint (no hourly charge)
+- S3 Gateway Endpoints (S3, DynamoDB)
 
 Use `terraform plan` to review resources before applying.
 

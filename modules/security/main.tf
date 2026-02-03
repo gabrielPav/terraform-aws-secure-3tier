@@ -154,26 +154,6 @@ resource "aws_iam_role_policy" "ec2_efs" {
   })
 }
 
-resource "aws_iam_role_policy" "ec2_ssm" {
-  name = "${var.project_name}-${var.environment}-ec2-ssm-policy"
-  role = aws_iam_role.ec2.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "ssm:UpdateInstanceInformation",
-        "ssmmessages:CreateControlChannel",
-        "ssmmessages:CreateDataChannel",
-        "ssmmessages:OpenControlChannel",
-        "ssmmessages:OpenDataChannel"
-      ]
-      Resource = "*"
-    }]
-  })
-}
-
 resource "aws_iam_role_policy" "ec2_secrets_manager" {
   name = "${var.project_name}-${var.environment}-ec2-secrets-policy"
   role = aws_iam_role.ec2.id

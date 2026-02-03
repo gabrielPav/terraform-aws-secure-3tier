@@ -143,3 +143,12 @@ output "kms_key_id" {
   description = "KMS key ID"
   value       = module.security.kms_key_id
 }
+
+# EC2 Instance Connect Endpoint
+output "eic_endpoint_id" {
+  description = <<-EOT
+    EC2 Instance Connect Endpoint ID for SSH access to private instances.
+    Connect using: aws ec2-instance-connect ssh --instance-id <instance-id> --connection-type eice
+  EOT
+  value       = module.networking.eic_endpoint_id
+}

@@ -52,11 +52,14 @@ variable "enable_vpc_endpoints" {
   description = "Map of interface VPC endpoints to enable"
   type        = map(bool)
   default = {
-    ssm         = true
-    ssmmessages = true
-    ec2messages = true
-    logs        = true
+    logs = true
   }
+}
+
+variable "enable_eic_endpoint" {
+  description = "Enable EC2 Instance Connect Endpoint for secure SSH access to private instances"
+  type        = bool
+  default     = true
 }
 
 # ============================================================================
@@ -135,7 +138,7 @@ variable "rds_username" {
 variable "rds_allocated_storage" {
   description = "RDS allocated storage in GB"
   type        = number
-  default     = 100
+  default     = 50
 }
 
 variable "rds_backup_retention_period" {
@@ -168,7 +171,7 @@ variable "domain_name" {
     4. Configure the ALB HTTPS listener with the validated certificate
     5. Create a Route53 A record pointing to the ALB
 
-    Example: "app.example.com" or "www.mysite.org"
+    Example: "app.example.com" or "www.webapp.io"
 
     Requirements:
     - The Route53 hosted zone for the root domain must already exist

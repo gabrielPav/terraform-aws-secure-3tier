@@ -139,6 +139,12 @@ variable "alb_security_group_ids" {
   default     = []
 }
 
+variable "eic_security_group_id" {
+  description = "EC2 Instance Connect Endpoint security group ID for SSH access"
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)
