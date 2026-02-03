@@ -25,7 +25,7 @@ override.tf.json
 terraform.rc
 
 # Ignore lock files (optional - uncomment if you want to ignore)
-# .terraform.lock.hcl
+.terraform.lock.hcl
 
 # Ignore backup files
 *.backup

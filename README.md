@@ -1,34 +1,6 @@
 # Terraform AWS Secure 3-Tier Infrastructure
 
-A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. This project provisions a complete web application stack with networking, compute, database, load balancing, CDN, and monitoring components.
-
-## Architecture Overview
-
-```
-                    ┌─────────────────┐
-                    │   CloudFront    │
-                    │      (CDN)      │
-                    └────────┬────────┘
-                             │
-                    ┌────────▼────────┐
-                    │       ALB       │
-                    │  (HTTPS/HTTP)   │
-                    └────────┬────────┘
-                             │
-              ┌──────────────┼──────────────┐
-              │              │              │
-       ┌──────▼──────┐┌──────▼──────┐┌──────▼──────┐
-       │    EC2      ││    EC2      ││    EC2      │
-       │  (ASG)      ││  (ASG)      ││  (ASG)      │
-       └──────┬──────┘└──────┬──────┘└──────┬──────┘
-              │              │              │
-              └──────────────┼──────────────┘
-                             │
-                    ┌────────▼────────┐
-                    │      RDS        │
-                    │   (Multi-AZ)    │
-                    └─────────────────┘
-```
+A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. While many projects implement a standard AWS 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete web application stack including networking, compute, database, load balancing, CDN, and monitoring — all built using best-practice guardrails, least-privilege access, encryption, and auditable configurations to support real-world, enterprise-ready deployments.
 
 ## Features
 
