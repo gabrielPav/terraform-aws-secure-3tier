@@ -69,29 +69,20 @@ module "security" {
 }
 
 # ============================================================================
-# Storage Module (S3, EFS)
+# Storage Module (S3)
 # ============================================================================
 
 module "storage" {
   source = "./modules/storage"
 
-  project_name            = var.project_name
-  environment             = var.environment
-  vpc_id                  = module.networking.vpc_id
-  private_subnet_ids      = module.networking.private_subnet_ids
-  allowed_security_groups = [module.compute.ec2_security_group_id]
-  kms_key_id              = module.security.kms_key_id
+  project_name       = var.project_name
+  environment        = var.environment
+  kms_key_id         = module.security.kms_key_id
 
   # S3 Configuration
   s3_bucket_name       = "${var.project_name}-${var.environment}-assets"
   enable_s3_versioning = true
   enable_s3_encryption = true
-
-  # EFS Configuration
-  enable_efs           = true
-  efs_performance_mode = "generalPurpose"
-  efs_throughput_mode  = "bursting"
-  enable_efs_backups   = true
 
   tags = var.common_tags
 }
@@ -131,17 +122,16 @@ module "database" {
 module "compute" {
   source = "./modules/compute"
 
-  project_name        = var.project_name
-  environment         = var.environment
-  vpc_id              = module.networking.vpc_id
-  public_subnet_ids   = module.networking.public_subnet_ids
-  private_subnet_ids  = module.networking.private_subnet_ids
-  efs_file_system_id  = module.storage.efs_file_system_id
-  efs_access_point_id = module.storage.efs_access_point_id
-  s3_bucket_name      = module.storage.s3_bucket_name
-  rds_endpoint        = module.database.rds_endpoint
-  rds_port            = module.database.rds_port
-  db_secret_arn       = module.database.rds_master_user_secret_arn
+  project_name       = var.project_name
+  environment        = var.environment
+  vpc_id             = module.networking.vpc_id
+  public_subnet_ids  = module.networking.public_subnet_ids
+  private_subnet_ids = module.networking.private_subnet_ids
+  s3_bucket_name     = module.storage.s3_bucket_name
+  rds_endpoint       = module.database.rds_address
+  rds_port           = module.database.rds_port
+  db_name            = var.rds_database_name
+  db_secret_arn      = module.database.rds_master_user_secret_arn
 
   # EC2 Configuration
   instance_type         = var.ec2_instance_type
@@ -151,7 +141,7 @@ module "compute" {
   enable_ebs_encryption = true
   ebs_volume_size       = var.ebs_volume_size
   ebs_volume_type       = "gp3"
-  kms_key_id            = module.security.kms_key_id
+  kms_key_arn           = module.security.kms_key_arn
 
   # IAM
   iam_instance_profile   = module.security.ec2_instance_profile_name

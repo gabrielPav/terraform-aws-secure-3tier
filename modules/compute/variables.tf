@@ -23,18 +23,6 @@ variable "private_subnet_ids" {
   type        = list(string)
 }
 
-variable "efs_file_system_id" {
-  description = "EFS file system ID"
-  type        = string
-  default     = null
-}
-
-variable "efs_access_point_id" {
-  description = "EFS access point ID"
-  type        = string
-  default     = null
-}
-
 variable "s3_bucket_name" {
   description = "S3 bucket name"
   type        = string
@@ -55,6 +43,11 @@ variable "db_secret_arn" {
   description = "ARN of the Secrets Manager secret containing database credentials"
   type        = string
   sensitive   = true
+}
+
+variable "db_name" {
+  description = "Database name"
+  type        = string
 }
 
 variable "instance_type" {
@@ -94,10 +87,9 @@ variable "enable_ebs_encryption" {
   default     = true
 }
 
-variable "kms_key_id" {
-  description = "KMS key ID for EBS encryption. If not specified, uses the default EBS encryption key."
+variable "kms_key_arn" {
+  description = "KMS key ARN for EBS encryption"
   type        = string
-  default     = null
 }
 
 variable "allowed_security_group_id" {

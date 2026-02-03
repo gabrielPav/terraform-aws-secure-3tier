@@ -36,14 +36,13 @@ resource "aws_kms_key" "main" {
         Resource = "*"
       },
       {
-        Sid    = "Allow use of the key"
+        Sid    = "Allow AWS services to use the key"
         Effect = "Allow"
         Principal = {
           Service = [
             "ec2.amazonaws.com",
             "rds.amazonaws.com",
-            "s3.amazonaws.com",
-            "elasticfilesystem.amazonaws.com"
+            "s3.amazonaws.com"
           ]
         }
         Action = [
@@ -54,6 +53,35 @@ resource "aws_kms_key" "main" {
           "kms:DescribeKey"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "Allow Auto Scaling service-linked role to use the key"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "Allow Auto Scaling service-linked role to create grants"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
+        }
+        Action   = "kms:CreateGrant"
+        Resource = "*"
+        Condition = {
+          Bool = {
+            "kms:GrantIsForAWSResource" = "true"
+          }
+        }
       },
       {
         Sid    = "Allow CloudWatch Logs to use the key"
@@ -72,6 +100,26 @@ resource "aws_kms_key" "main" {
         Condition = {
           ArnLike = {
             "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:*"
+          }
+        }
+      },
+      {
+        Sid    = "Allow CloudTrail to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudtrail.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringLike = {
+            "kms:EncryptionContext:aws:cloudtrail:arn" = "arn:aws:cloudtrail:*:${data.aws_caller_identity.current.account_id}:trail/*"
           }
         }
       }
@@ -127,29 +175,6 @@ resource "aws_iam_role_policy" "ec2_s3" {
         "arn:aws:s3:::${var.project_name}-${var.environment}-*",
         "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
       ]
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "ec2_efs" {
-  name = "${var.project_name}-${var.environment}-ec2-efs-policy"
-  role = aws_iam_role.ec2.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "elasticfilesystem:ClientMount",
-        "elasticfilesystem:ClientWrite",
-        "elasticfilesystem:ClientRootAccess"
-      ]
-      Resource = "*"
-      Condition = {
-        StringEquals = {
-          "elasticfilesystem:AccessPointArn" = "*"
-        }
-      }
     }]
   })
 }
@@ -262,6 +287,11 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
         }
         Action   = "s3:GetBucketAcl"
         Resource = aws_s3_bucket.cloudtrail[0].arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = "arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.cloudtrail_name}"
+          }
+        }
       },
       {
         Sid    = "AWSCloudTrailWrite"
@@ -270,10 +300,11 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
           Service = "cloudtrail.amazonaws.com"
         }
         Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.cloudtrail[0].arn}/*"
+        Resource = "${aws_s3_bucket.cloudtrail[0].arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
         Condition = {
           StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
+            "s3:x-amz-acl"  = "bucket-owner-full-control"
+            "AWS:SourceArn" = "arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.cloudtrail_name}"
           }
         }
       }

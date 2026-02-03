@@ -19,6 +19,8 @@ terraform {
   }
 }
 
+data "aws_caller_identity" "current" {}
+
 # ============================================================================
 # Local Variables
 # ============================================================================
@@ -104,6 +106,9 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
   restrict_public_buckets = true
 }
 
+# Data source to get the ELB service account for the current region
+data "aws_elb_service_account" "main" {}
+
 # Bucket policy allowing AWS load balancer service to write access logs
 resource "aws_s3_bucket_policy" "alb_logs" {
   count  = var.enable_access_logs ? 1 : 0
@@ -111,14 +116,29 @@ resource "aws_s3_bucket_policy" "alb_logs" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "delivery.logs.amazonaws.com"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = data.aws_elb_service_account.main.arn
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+      },
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = "bucket-owner-full-control"
+          }
+        }
       }
-      Action   = "s3:PutObject"
-      Resource = "${aws_s3_bucket.alb_logs[0].arn}/*"
-    }]
+    ]
   })
 }
 

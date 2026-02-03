@@ -32,8 +32,6 @@ resource "aws_launch_template" "main" {
   image_id      = data.aws_ami.amazon_linux.id
   instance_type = var.instance_type
 
-  vpc_security_group_ids = [aws_security_group.ec2.id]
-
   iam_instance_profile {
     name = var.iam_instance_profile
   }
@@ -45,7 +43,7 @@ resource "aws_launch_template" "main" {
       volume_size           = var.ebs_volume_size
       volume_type           = var.ebs_volume_type
       encrypted             = var.enable_ebs_encryption
-      kms_key_id            = var.kms_key_id
+      kms_key_id            = var.kms_key_arn
       delete_on_termination = true
     }
   }
@@ -53,12 +51,11 @@ resource "aws_launch_template" "main" {
   ebs_optimized = true
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
-    efs_file_system_id  = var.efs_file_system_id
-    efs_access_point_id = var.efs_access_point_id
-    s3_bucket_name      = var.s3_bucket_name
-    rds_endpoint        = var.rds_endpoint
-    rds_port            = var.rds_port
-    db_secret_arn       = var.db_secret_arn
+    s3_bucket_name = var.s3_bucket_name
+    rds_endpoint   = var.rds_endpoint
+    rds_port       = var.rds_port
+    db_name        = var.db_name
+    db_secret_arn  = var.db_secret_arn
   }))
 
   metadata_options {
@@ -71,6 +68,7 @@ resource "aws_launch_template" "main" {
   network_interfaces {
     associate_public_ip_address = false
     delete_on_termination       = true
+    security_groups             = [aws_security_group.ec2.id]
   }
 
   monitoring {

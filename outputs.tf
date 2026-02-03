@@ -111,12 +111,6 @@ output "cloudfront_domain_name" {
 }
 
 # Database Outputs
-output "rds_endpoint" {
-  description = "RDS endpoint"
-  value       = module.database.rds_endpoint
-  sensitive   = true
-}
-
 output "rds_port" {
   description = "RDS port"
   value       = module.database.rds_port
@@ -126,11 +120,6 @@ output "rds_port" {
 output "s3_bucket_name" {
   description = "S3 bucket name"
   value       = module.storage.s3_bucket_name
-}
-
-output "efs_file_system_id" {
-  description = "EFS file system ID"
-  value       = module.storage.efs_file_system_id
 }
 
 # Security Outputs

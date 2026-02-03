@@ -5,12 +5,13 @@ A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. Wh
 ## Features
 
 - **Networking**: VPC with public/private subnets across multiple AZs, NAT gateways, VPC endpoints
-- **Compute**: Auto Scaling Group with Launch Templates, EC2 instances with IMDSv2
+- **Compute**: Auto Scaling Group with Launch Templates, EC2 instances with IMDSv2, encrypted EBS volumes
+- **Storage**: S3 buckets for assets and logs with versioning, encryption, and lifecycle policies
 - **Database**: RDS with Multi-AZ support, encryption at rest, automated backups
 - **Load Balancing**: Application Load Balancer with HTTP/HTTPS support
 - **SSL/TLS**: Automatic ACM certificate provisioning with DNS validation
 - **CDN**: CloudFront distribution with S3 origin
-- **Security**: IAM roles, KMS encryption, CloudTrail logging, security groups
+- **Security**: IAM roles, KMS encryption (customer-managed keys), CloudTrail logging, security groups
 - **Instance Access**: EC2 Instance Connect Endpoint for secure SSH access without public IPs
 - **Monitoring**: CloudWatch alarms and dashboards
 
@@ -342,15 +343,89 @@ See `variables.tf` for the complete list of available variables.
 1. Check Route53 for the A record pointing to ALB
 2. Run `terraform apply` to ensure all resources are created
 
-## Security Considerations
+## Security Best Practices
 
-- All data at rest is encrypted using KMS
-- HTTPS uses TLS 1.2/1.3 only (modern security policy)
-- HTTP traffic is redirected to HTTPS by default
+### Encryption
+
+- All data encrypted at rest using customer-managed KMS keys
+- KMS key rotation enabled (automatic annual rotation)
+- EBS volumes encrypted with KMS
+- RDS storage encryption enabled
+- S3 server-side encryption (SSE-KMS)
+- CloudTrail logs encrypted with KMS
+- CloudWatch Logs encrypted with KMS
+
+### Network Security
+
+- EC2 instances deployed in private subnets with no public IPs
+- RDS not publicly accessible, isolated in private subnets
+- VPC Flow Logs enabled for network traffic auditing
 - Security groups follow least-privilege principle
-- CloudTrail logging is enabled
-- S3 buckets block public access
-- EC2 instances have no public IPs; SSH access via IAM-authenticated EIC Endpoint only
+- VPC Gateway Endpoints for S3 and DynamoDB (traffic stays in AWS)
+- VPC Interface Endpoints for private AWS service access
+- NAT Gateway for secure outbound-only internet access
+
+### Identity & Access Management
+
+- IAM roles scoped to specific resources and actions
+- EC2 instance profile with minimal permissions
+- Secrets Manager integration for RDS credentials (no hardcoded passwords)
+- EC2 Instance Connect Endpoint for SSH (IAM-authenticated, no bastion host)
+
+### Instance Hardening
+
+- IMDSv2 required on all EC2 instances (SSRF protection)
+- Metadata hop limit restricted to 2
+- Only verified Amazon Linux 2 AMIs used
+- Termination protection enabled in production
+
+### Transport Security
+
+- HTTPS enforced with TLS 1.2 minimum
+- HTTP automatically redirected to HTTPS
+- ACM certificates with DNS validation
+- CloudFront origin connections use HTTPS-only
+- ALB drops invalid header fields
+
+### S3 Security
+
+- Public access blocked on all buckets
+- Bucket versioning enabled
+- Access logging enabled
+- Lifecycle policies for log retention and archival
+
+### Logging & Auditing
+
+- CloudTrail enabled (multi-region, all events)
+- CloudTrail log file validation enabled
+- S3 access logging for all buckets
+- ALB access logs enabled
+- VPC Flow Logs to CloudWatch
+
+### Database Security
+
+- Multi-AZ deployment for high availability
+- Automated backups with configurable retention
+- Deletion protection in production
+- Access restricted to EC2 security group only
+
+### Application Protection
+
+- AWS WAF with OWASP managed rules (optional)
+- CloudFront Origin Access Control for S3
+- Cross-zone load balancing enabled
+
+### Monitoring & Alerting
+
+- CloudWatch alarms for CPU, errors, and performance
+- CloudWatch dashboard for infrastructure visibility
+- Log retention policies enforced
+
+## Architecture Notes
+
+- **Storage**: Each EC2 instance uses encrypted EBS volumes for local storage. S3 is used for shared assets and logging. No shared filesystem (EFS) is deployed.
+- **Database**: RDS instance with credentials managed by AWS Secrets Manager. The endpoint is accessible only from EC2 instances in private subnets.
+- **Scaling**: Auto Scaling Group manages EC2 instances across multiple availability zones for high availability.
 
 ## Cost Considerations
 
@@ -361,6 +436,7 @@ This infrastructure includes resources that incur AWS charges:
 - Application Load Balancer
 - Route53 hosted zone ($0.50/month)
 - CloudFront distribution
+- KMS keys ($1/month per key)
 - Data transfer costs
 
 **Free tier resources:**
