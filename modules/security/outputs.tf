@@ -1,6 +1,6 @@
 output "kms_key_id" {
-  description = "KMS key ID"
-  value       = aws_kms_key.main.id
+  description = "KMS key ARN (used for encryption configuration)"
+  value       = aws_kms_key.main.arn
 }
 
 output "kms_key_arn" {

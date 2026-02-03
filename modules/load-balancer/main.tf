@@ -74,14 +74,13 @@ resource "aws_s3_bucket" "alb_logs" {
   })
 }
 
-# Enable versioning on the ALB logs bucket with MFA Delete protection
+# Enable versioning on the ALB logs bucket
 resource "aws_s3_bucket_versioning" "alb_logs_versioning" {
   count  = var.enable_access_logs ? 1 : 0
   bucket = aws_s3_bucket.alb_logs[0].id
 
   versioning_configuration {
-    status     = "Enabled"
-    mfa_delete = "Enabled"
+    status = "Enabled"
   }
 }
 
