@@ -45,9 +45,12 @@ resource "aws_launch_template" "main" {
       volume_size           = var.ebs_volume_size
       volume_type           = var.ebs_volume_type
       encrypted             = var.enable_ebs_encryption
+      kms_key_id            = var.kms_key_id
       delete_on_termination = true
     }
   }
+
+  ebs_optimized = true
 
   user_data = base64encode(templatefile("${path.module}/user_data.sh", {
     efs_file_system_id  = var.efs_file_system_id
@@ -57,6 +60,28 @@ resource "aws_launch_template" "main" {
     rds_port            = var.rds_port
     db_secret_arn       = var.db_secret_arn
   }))
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+    instance_metadata_tags      = "enabled"
+  }
+
+  network_interfaces {
+    associate_public_ip_address = false
+    delete_on_termination       = true
+  }
+
+  monitoring {
+    enabled = var.enable_detailed_monitoring
+  }
+
+  placement {
+    tenancy = var.instance_tenancy
+  }
+
+  disable_api_termination = var.enable_ec2_termination_protection
 
   tag_specifications {
     resource_type = "instance"
@@ -108,14 +133,41 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_https_from_alb" {
   description = "HTTPS from ALB"
 }
 
-# Egress: Allow all outbound
-resource "aws_vpc_security_group_egress_rule" "ec2_egress_all" {
+
+# Egress: Allow HTTP
+resource "aws_vpc_security_group_egress_rule" "ec2_http_egress" {
   security_group_id = aws_security_group.ec2.id
 
   cidr_ipv4   = "0.0.0.0/0"
-  ip_protocol = "-1"
+  from_port   = 80
+  to_port     = 80
+  ip_protocol = "tcp"
+  description = "Allow HTTP for updates and API calls"
+}
 
-  description = "Allow all outbound"
+
+# Egress: Allow HTTPS
+resource "aws_vpc_security_group_egress_rule" "ec2_https_egress" {
+  security_group_id = aws_security_group.ec2.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 443
+  to_port     = 443
+  ip_protocol = "tcp"
+  description = "Allow HTTPS for updates and API calls"
+}
+
+# Egress: Allow MySQL
+resource "aws_vpc_security_group_egress_rule" "ec2_egress_rds" {
+  count = length(var.allowed_security_group_id)
+
+  security_group_id = aws_security_group.ec2.id
+  referenced_security_group_id = var.allowed_security_group_id[count.index]
+
+  from_port   = 3306
+  to_port     = 3306
+  ip_protocol = "tcp"
+  description = "Allow traffic to RDS (MySQL)"
 }
 
 # Auto Scaling Group
@@ -125,6 +177,7 @@ resource "aws_autoscaling_group" "main" {
   target_group_arns         = [aws_lb_target_group.main.arn]
   health_check_type         = "ELB"
   health_check_grace_period = 300
+  capacity_rebalance        = true
 
   min_size         = var.min_size
   max_size         = var.max_size

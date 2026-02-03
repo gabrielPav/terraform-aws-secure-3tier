@@ -99,6 +99,28 @@ variable "iam_instance_profile" {
   type        = string
 }
 
+variable "enable_detailed_monitoring" {
+  description = "Enable EC2 detailed monitoring"
+  type        = bool
+  default     = true
+}
+
+variable "enable_ec2_termination_protection" {
+  description = "Enable EC2 instance termination protection"
+  type        = bool
+  default     = true
+}
+
+variable "instance_tenancy" {
+  description = "EC2 Instance tenancy: default, dedicated, or host"
+  type        = string
+  default     = "default"
+  validation {
+    condition     = contains(["default", "dedicated", "host"], var.instance_tenancy)
+    error_message = "Instance tenancy must be one of: default, dedicated, host."
+  }
+}
+
 variable "alb_security_group_ids" {
   description = "ALB security group IDs"
   type        = list(string)
