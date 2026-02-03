@@ -53,7 +53,7 @@ A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. Th
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/gabrielPav/terraform-aws-secure-3tier.git
 cd terraform-aws-secure-3tier
 ```
 
