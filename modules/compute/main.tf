@@ -161,7 +161,7 @@ resource "aws_vpc_security_group_egress_rule" "ec2_https_egress" {
 resource "aws_vpc_security_group_egress_rule" "ec2_egress_rds" {
   count = length(var.allowed_security_group_id)
 
-  security_group_id = aws_security_group.ec2.id
+  security_group_id            = aws_security_group.ec2.id
   referenced_security_group_id = var.allowed_security_group_id[count.index]
 
   from_port   = 3306

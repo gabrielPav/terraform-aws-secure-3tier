@@ -29,15 +29,74 @@ output "ec2_security_group_id" {
   value       = module.compute.ec2_security_group_id
 }
 
+# ============================================================================
 # Load Balancer Outputs
+# ============================================================================
+
 output "alb_dns_name" {
-  description = "ALB DNS name"
+  description = <<-EOT
+    The DNS name of the Application Load Balancer.
+    Use this to access the ALB directly or configure external DNS records.
+    Example: my-alb-123456789.us-east-1.elb.amazonaws.com
+  EOT
   value       = module.load_balancer.alb_dns_name
 }
 
 output "alb_arn" {
-  description = "ALB ARN"
+  description = "The ARN of the Application Load Balancer"
   value       = module.load_balancer.alb_arn
+}
+
+output "https_endpoint_url" {
+  description = <<-EOT
+    The HTTPS endpoint URL for the application.
+    - If domain_name is configured: https://<domain_name>
+    - If only certificate_arn is provided: https://<alb_dns_name>
+    - If HTTPS is not enabled: Empty string
+
+    Use this URL to access the application securely over HTTPS.
+  EOT
+  value       = module.load_balancer.https_endpoint_url
+}
+
+output "http_endpoint_url" {
+  description = <<-EOT
+    The HTTP endpoint URL for the application.
+    Note: If HTTPS is enabled with redirect_http_to_https=true,
+    HTTP requests will be automatically redirected to HTTPS.
+  EOT
+  value       = module.load_balancer.http_endpoint_url
+}
+
+output "https_enabled" {
+  description = "Whether HTTPS is enabled on the ALB"
+  value       = module.load_balancer.https_enabled
+}
+
+output "acm_certificate_arn" {
+  description = <<-EOT
+    The ARN of the ACM certificate used for HTTPS.
+    Empty string if HTTPS is not enabled.
+  EOT
+  value       = module.load_balancer.acm_certificate_arn
+}
+
+output "route53_name_servers" {
+  description = <<-EOT
+    The nameservers for the Route53 hosted zone.
+    Only populated if create_route53_zone = true (new zone created).
+    If populated, configure your domain registrar to use these nameservers.
+  EOT
+  value       = module.load_balancer.route53_zone_name_servers
+}
+
+output "route53_zone_created" {
+  description = <<-EOT
+    Whether a new Route53 zone was created.
+    - true: You must update your domain registrar's nameservers (see route53_name_servers)
+    - false: Using existing zone, certificate validates in 2-5 minutes
+  EOT
+  value       = module.load_balancer.route53_zone_created
 }
 
 # CDN Outputs

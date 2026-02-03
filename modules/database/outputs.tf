@@ -25,6 +25,11 @@ output "rds_arn" {
   value       = aws_db_instance.main.arn
 }
 
+output "rds_security_group_id" {
+  description = "RDS security group ID"
+  value       = aws_security_group.rds.id
+}
+
 output "rds_master_user_secret_arn" {
   description = "ARN of the Secrets Manager secret containing the master user password"
   value       = aws_db_instance.main.master_user_secret[0].secret_arn

@@ -149,9 +149,66 @@ variable "rds_backup_retention_period" {
 # ============================================================================
 
 variable "alb_certificate_arn" {
-  description = "ARN of SSL certificate for ALB (optional)"
+  description = <<-EOT
+    ARN of an existing SSL certificate for ALB (optional).
+    If provided, this certificate will be used instead of creating a new one.
+    Takes precedence over domain_name for certificate selection.
+  EOT
   type        = string
   default     = ""
+}
+
+variable "domain_name" {
+  description = <<-EOT
+    Fully Qualified Domain Name (FQDN) for the HTTPS endpoint.
+    When provided (and alb_certificate_arn is empty), Terraform will:
+    1. Request an ACM certificate for this domain
+    2. Look up the Route53 hosted zone for DNS validation
+    3. Create DNS records for certificate validation
+    4. Configure the ALB HTTPS listener with the validated certificate
+    5. Create a Route53 A record pointing to the ALB
+
+    Example: "app.example.com" or "www.mysite.org"
+
+    Requirements:
+    - The Route53 hosted zone for the root domain must already exist
+    - For "app.example.com", the hosted zone "example.com" must exist
+    - DNS propagation and certificate validation typically take 2-5 minutes
+  EOT
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.domain_name == "" || can(regex("^[a-zA-Z0-9][a-zA-Z0-9-]*(\\.[a-zA-Z0-9][a-zA-Z0-9-]*)+$", var.domain_name))
+    error_message = "Domain name must be a valid FQDN (e.g., 'app.example.com')."
+  }
+}
+
+variable "redirect_http_to_https" {
+  description = <<-EOT
+    When HTTPS is enabled, redirect all HTTP (port 80) traffic to HTTPS (port 443).
+    Uses HTTP 301 permanent redirect. Set to false to keep HTTP forwarding to targets.
+  EOT
+  type        = bool
+  default     = true
+}
+
+variable "create_route53_zone" {
+  description = <<-EOT
+    Whether to create a new Route53 hosted zone or use an existing one.
+
+    - false (default): Uses an existing hosted zone. The zone must already exist
+                       and be configured. Certificate validates in 2-5 minutes.
+
+    - true: Creates a new hosted zone. You must manually update your domain
+            registrar's nameservers after apply. DNS propagation can take up to
+            48 hours before the certificate validates.
+
+    Recommendation: Use false (existing zone) for faster setup if you already
+    have a Route53 hosted zone for your domain.
+  EOT
+  type        = bool
+  default     = false
 }
 
 # ============================================================================

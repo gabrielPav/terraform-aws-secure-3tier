@@ -150,10 +150,14 @@ module "compute" {
   enable_ebs_encryption = true
   ebs_volume_size       = var.ebs_volume_size
   ebs_volume_type       = "gp3"
+  kms_key_id            = module.security.kms_key_id
 
   # IAM
   iam_instance_profile   = module.security.ec2_instance_profile_name
   alb_security_group_ids = [module.load_balancer.alb_security_group_id]
+
+  # Security group for RDS egress
+  allowed_security_group_id = [module.database.rds_security_group_id]
 
   tags = var.common_tags
 }
@@ -180,9 +184,27 @@ module "load_balancer" {
   enable_http2               = true
   enable_cross_zone          = true
 
-  # SSL/TLS
-  certificate_arn = var.alb_certificate_arn
-  enable_https    = var.alb_certificate_arn != "" ? true : false
+  # ============================================================================
+  # SSL/TLS Configuration
+  # ============================================================================
+  # HTTPS can be enabled in two ways:
+  # 1. Provide domain_name - Creates ACM certificate with DNS validation
+  # 2. Provide alb_certificate_arn - Uses existing certificate
+  #
+  # If both are provided, alb_certificate_arn takes precedence.
+  # If neither is provided, only HTTP listener is created.
+  #
+  # Route53 Zone Options:
+  # - create_route53_zone = false (default): Use existing zone, fast validation
+  # - create_route53_zone = true: Create new zone, requires nameserver update
+  # ============================================================================
+  domain_name            = var.domain_name
+  certificate_arn        = var.alb_certificate_arn
+  redirect_http_to_https = var.redirect_http_to_https
+  create_route53_zone    = var.create_route53_zone
+
+  # HTTPS is enabled if either domain_name or certificate_arn is provided
+  enable_https = var.domain_name != "" || var.alb_certificate_arn != ""
 
   tags = var.common_tags
 }
@@ -194,10 +216,10 @@ module "load_balancer" {
 module "cdn" {
   source = "./modules/cdn"
 
-  project_name          = var.project_name
-  environment           = var.environment
-  alb_dns_name          = module.load_balancer.alb_dns_name
-  alb_zone_id           = module.load_balancer.alb_zone_id
+  project_name                 = var.project_name
+  environment                  = var.environment
+  alb_dns_name                 = module.load_balancer.alb_dns_name
+  alb_zone_id                  = module.load_balancer.alb_zone_id
   s3_bucket_domain_name        = module.storage.s3_bucket_domain_name
   s3_access_logs_bucket_domain = module.storage.s3_access_logs_bucket_domain
 

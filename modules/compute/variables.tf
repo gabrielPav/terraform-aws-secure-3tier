@@ -94,6 +94,18 @@ variable "enable_ebs_encryption" {
   default     = true
 }
 
+variable "kms_key_id" {
+  description = "KMS key ID for EBS encryption. If not specified, uses the default EBS encryption key."
+  type        = string
+  default     = null
+}
+
+variable "allowed_security_group_id" {
+  description = "List of security group IDs that EC2 instances are allowed to send traffic to (e.g., RDS security group)"
+  type        = list(string)
+  default     = []
+}
+
 variable "iam_instance_profile" {
   description = "IAM instance profile name"
   type        = string
