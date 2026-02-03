@@ -135,7 +135,7 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_https_from_alb" {
 
 # Ingress: SSH from EC2 Instance Connect Endpoint
 resource "aws_vpc_security_group_ingress_rule" "ec2_ssh_from_eic" {
-  count = var.eic_security_group_id != null ? 1 : 0
+  count = var.enable_eic_ssh_access ? 1 : 0
 
   security_group_id            = aws_security_group.ec2.id
   referenced_security_group_id = var.eic_security_group_id

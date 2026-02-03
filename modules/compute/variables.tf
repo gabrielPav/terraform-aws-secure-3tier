@@ -145,6 +145,12 @@ variable "eic_security_group_id" {
   default     = null
 }
 
+variable "enable_eic_ssh_access" {
+  description = "Enable SSH access from EC2 Instance Connect Endpoint"
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)

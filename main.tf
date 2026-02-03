@@ -159,6 +159,7 @@ module "compute" {
 
   # EC2 Instance Connect Endpoint for SSH access
   eic_security_group_id = module.networking.eic_endpoint_security_group_id
+  enable_eic_ssh_access = var.enable_eic_endpoint
 
   # Security group for RDS egress
   allowed_security_group_id = [module.database.rds_security_group_id]
