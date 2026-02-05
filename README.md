@@ -1,5 +1,9 @@
 # Terraform AWS Secure 3-Tier Infrastructure
 
+![AWS Badge](https://img.shields.io/badge/AWS-Deployed-232F3E.svg?style=flat&logo=amazon-aws&logoColor=white)
+![Terraform Badge](https://img.shields.io/badge/Terraform-awesome-5c4ee5.svg?style=flat&logo=terraform&logoColor=white)
+![Bash Badge](https://img.shields.io/badge/Bash-Scripting-4EAA25.svg?style=flat&logo=gnu-bash&logoColor=white)
+
 A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. While many projects implement a standard AWS 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete web application stack including networking, compute, database, load balancing, CDN, and monitoring — all built using best-practice guardrails, least-privilege access, encryption, and auditable configurations to support real-world, enterprise-ready deployments.
 
 ## Features
@@ -10,7 +14,7 @@ A production-ready, secure 3-tier AWS infrastructure deployed with Terraform. Wh
 - **Database**: RDS with Multi-AZ support, encryption at rest, automated backups
 - **Load Balancing**: Application Load Balancer with HTTP/HTTPS support
 - **SSL/TLS**: Automatic ACM certificate provisioning with DNS validation
-- **CDN**: CloudFront distribution with S3 origin
+- **CDN**: CloudFront distribution with ALB origin (default) and S3 origin for static assets
 - **Security**: IAM roles, KMS encryption (customer-managed keys), CloudTrail logging, security groups
 - **Instance Access**: EC2 Instance Connect Endpoint for secure SSH access without public IPs
 - **Monitoring**: CloudWatch alarms and dashboards
@@ -361,12 +365,14 @@ See `variables.tf` for the complete list of available variables.
 - RDS not publicly accessible, isolated in private subnets
 - VPC Flow Logs enabled for network traffic auditing
 - Security groups follow least-privilege principle
+- Default VPC security group restricts all traffic
 - VPC Gateway Endpoints for S3 and DynamoDB (traffic stays in AWS)
 - VPC Interface Endpoints for private AWS service access
 - NAT Gateway for secure outbound-only internet access
 
 ### Identity & Access Management
 
+- Least-privilege IAM policies throughout all resources
 - IAM roles scoped to specific resources and actions
 - EC2 instance profile with minimal permissions
 - Secrets Manager integration for RDS credentials (no hardcoded passwords)
@@ -385,6 +391,7 @@ See `variables.tf` for the complete list of available variables.
 - HTTP automatically redirected to HTTPS
 - ACM certificates with DNS validation
 - CloudFront origin connections use HTTPS-only
+- RDS connections require SSL/TLS encryption
 - ALB drops invalid header fields
 
 ### S3 Security
@@ -393,11 +400,13 @@ See `variables.tf` for the complete list of available variables.
 - Bucket versioning enabled
 - Access logging enabled
 - Lifecycle policies for log retention and archival
+- Multipart upload auto-abort for incomplete uploads
 
 ### Logging & Auditing
 
 - CloudTrail enabled (multi-region, all events)
 - CloudTrail log file validation enabled
+- CloudTrail log retention (1+ year) for compliance (SOC2, PCI-DSS, HIPAA)
 - S3 access logging for all buckets
 - ALB access logs enabled
 - VPC Flow Logs to CloudWatch
@@ -406,13 +415,16 @@ See `variables.tf` for the complete list of available variables.
 
 - Multi-AZ deployment for high availability
 - Automated backups with configurable retention
-- Deletion protection in production
+- Auto minor version upgrade for automatic security patches
+- Deletion protection enabled in production
 - Access restricted to EC2 security group only
 
 ### Application Protection
 
 - AWS WAF with OWASP managed rules (optional)
 - CloudFront Origin Access Control for S3
+- CloudFront geo-restriction for regional access control
+- CloudFront security headers policy (HSTS, X-Frame-Options, Content-Security-Policy)
 - Cross-zone load balancing enabled
 
 ### Monitoring & Alerting
@@ -420,28 +432,6 @@ See `variables.tf` for the complete list of available variables.
 - CloudWatch alarms for CPU, errors, and performance
 - CloudWatch dashboard for infrastructure visibility
 - Log retention policies enforced
-
-## Architecture Notes
-
-- **Storage**: Each EC2 instance uses encrypted EBS volumes for local storage. S3 is used for shared assets and logging. No shared filesystem (EFS) is deployed.
-- **Database**: RDS instance with credentials managed by AWS Secrets Manager. The endpoint is accessible only from EC2 instances in private subnets.
-- **Scaling**: Auto Scaling Group manages EC2 instances across multiple availability zones for high availability.
-
-## Cost Considerations
-
-This infrastructure includes resources that incur AWS charges:
-- EC2 instances (Auto Scaling Group)
-- RDS database (Multi-AZ in production)
-- NAT Gateways
-- Application Load Balancer
-- Route53 hosted zone ($0.50/month)
-- CloudFront distribution
-- KMS keys ($1/month per key)
-- Data transfer costs
-
-**Free tier resources:**
-- EC2 Instance Connect Endpoint (no hourly charge)
-- S3 Gateway Endpoints (S3, DynamoDB)
 
 Use `terraform plan` to review resources before applying.
 

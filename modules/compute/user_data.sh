@@ -18,7 +18,8 @@ if ($secrets_ok) {
     mysqli_report(MYSQLI_REPORT_OFF);
     $conn = mysqli_init();
     $conn->options(MYSQLI_SET_CHARSET_NAME, 'utf8mb4');
-    @$conn->real_connect(getenv('DB_HOST'), $credentials['username'], $credentials['password'], getenv('DB_NAME'), (int)getenv('DB_PORT'));
+    $conn->ssl_set(NULL, NULL, '/etc/pki/tls/certs/ca-bundle.crt', NULL, NULL);
+    @$conn->real_connect(getenv('DB_HOST'), $credentials['username'], $credentials['password'], getenv('DB_NAME'), (int)getenv('DB_PORT'), NULL, MYSQLI_CLIENT_SSL);
     if ($conn->connect_error) {
         $db_error = $conn->connect_error;
     } else {

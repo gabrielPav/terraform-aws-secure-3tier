@@ -230,6 +230,29 @@ variable "enable_waf" {
   default     = false
 }
 
+variable "enable_geo_restriction" {
+  description = "Enable geo restriction for CloudFront distribution"
+  type        = bool
+  default     = false
+}
+
+variable "geo_restriction_type" {
+  description = "Type of geo restriction: whitelist (allow only listed countries) or blacklist (block listed countries)"
+  type        = string
+  default     = "whitelist"
+
+  validation {
+    condition     = contains(["whitelist", "blacklist"], var.geo_restriction_type)
+    error_message = "geo_restriction_type must be either 'whitelist' or 'blacklist'."
+  }
+}
+
+variable "geo_restriction_locations" {
+  description = "List of ISO 3166-1-alpha-2 country codes for geo restriction (e.g., [\"US\", \"CA\", \"GB\"])"
+  type        = list(string)
+  default     = []
+}
+
 # ============================================================================
 # Monitoring Variables
 # ============================================================================

@@ -25,6 +25,14 @@ resource "aws_s3_bucket" "main" {
   })
 }
 
+resource "aws_s3_bucket_ownership_controls" "main" {
+  bucket = aws_s3_bucket.main.id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "main" {
   bucket = aws_s3_bucket.main.id
 
@@ -57,12 +65,12 @@ resource "aws_s3_bucket" "s3_access_logs" {
   })
 }
 
-# Enable ACLs for CloudFront logging (CloudFront requires ACL access to write logs)
+# Disable ACLs and enforce bucket owner ownership for all objects
 resource "aws_s3_bucket_ownership_controls" "s3_access_logs" {
   bucket = aws_s3_bucket.s3_access_logs.id
 
   rule {
-    object_ownership = "BucketOwnerPreferred"
+    object_ownership = "BucketOwnerEnforced"
   }
 }
 
@@ -130,9 +138,20 @@ resource "aws_s3_bucket_lifecycle_configuration" "s3_access_logs" {
       days = 365
     }
   }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
 
-# Bucket policy to allow S3 logging service to write logs
+# Bucket policy to allow S3 and CloudFront logging services to write logs
 resource "aws_s3_bucket_policy" "s3_access_logs" {
   bucket = aws_s3_bucket.s3_access_logs.id
 
@@ -151,6 +170,20 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
           ArnLike = {
             "aws:SourceArn" = "arn:aws:s3:::${var.project_name}-${var.environment}-*"
           }
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "CloudFrontLogsPolicy"
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.s3_access_logs.arn}/cloudfront/*"
+        Condition = {
           StringEquals = {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
@@ -182,7 +215,8 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
 
   rule {
     apply_server_side_encryption_by_default {
-      sse_algorithm = "AES256"
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.kms_key_id
     }
   }
 }
@@ -211,6 +245,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
     transition {
       days          = 90
       storage_class = "GLACIER"
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
     }
   }
 }

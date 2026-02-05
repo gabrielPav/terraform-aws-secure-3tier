@@ -67,6 +67,12 @@ resource "aws_db_parameter_group" "main" {
     value = "utf8mb4_general_ci"
   }
 
+  # Enforce SSL/TLS for all connections (encryption in transit)
+  parameter {
+    name  = "require_secure_transport"
+    value = "1"
+  }
+
   tags = var.tags
 }
 
@@ -102,8 +108,10 @@ resource "aws_db_instance" "main" {
 
   enabled_cloudwatch_logs_exports = ["error", "general", "slowquery"]
 
-  deletion_protection = var.environment == "production" ? true : false
-  skip_final_snapshot = var.environment == "production" ? false : true
+  deletion_protection        = var.deletion_protection
+  skip_final_snapshot        = var.environment == "production" ? false : true
+  copy_tags_to_snapshot      = true
+  auto_minor_version_upgrade = true
 
   kms_key_id = var.kms_key_id
 

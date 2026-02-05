@@ -11,6 +11,47 @@ terraform {
   }
 }
 
+# Custom Security Headers Policy
+# Adds security headers to all CloudFront responses to protect against common attacks
+resource "aws_cloudfront_response_headers_policy" "security_headers" {
+  name    = "${var.project_name}-${var.environment}-security-headers"
+  comment = "Security headers policy for ${var.project_name} ${var.environment}"
+
+  security_headers_config {
+    # HSTS - Forces browsers to use HTTPS for future requests
+    strict_transport_security {
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+      preload                    = true
+      override                   = true
+    }
+
+    # Prevents MIME type sniffing attacks
+    content_type_options {
+      override = true
+    }
+
+    # Prevents clickjacking by disallowing iframe embedding
+    frame_options {
+      frame_option = "DENY"
+      override     = true
+    }
+
+    # Legacy XSS protection for older browsers
+    xss_protection {
+      mode_block = true
+      protection = true
+      override   = true
+    }
+
+    # Controls how much referrer information is shared
+    referrer_policy {
+      referrer_policy = "strict-origin-when-cross-origin"
+      override        = true
+    }
+  }
+}
+
 # CloudFront Origin Access Control (for S3)
 resource "aws_cloudfront_origin_access_control" "s3" {
   name                              = "${var.project_name}-${var.environment}-s3-oac"
@@ -63,11 +104,12 @@ resource "aws_cloudfront_distribution" "main" {
       }
     }
 
-    viewer_protocol_policy = var.enable_https ? "redirect-to-https" : "allow-all"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
-    compress               = var.enable_compression
+    viewer_protocol_policy     = var.enable_https ? "redirect-to-https" : "allow-all"
+    min_ttl                    = 0
+    default_ttl                = 3600
+    max_ttl                    = 86400
+    compress                   = var.enable_compression
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   }
 
   # S3 Cache Behavior
@@ -84,16 +126,18 @@ resource "aws_cloudfront_distribution" "main" {
       }
     }
 
-    viewer_protocol_policy = var.enable_https ? "redirect-to-https" : "allow-all"
-    min_ttl                = 0
-    default_ttl            = 86400
-    max_ttl                = 31536000
-    compress               = true
+    viewer_protocol_policy     = var.enable_https ? "redirect-to-https" : "allow-all"
+    min_ttl                    = 0
+    default_ttl                = 86400
+    max_ttl                    = 31536000
+    compress                   = true
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
   }
 
   restrictions {
     geo_restriction {
-      restriction_type = "none"
+      restriction_type = var.enable_geo_restriction ? var.geo_restriction_type : "none"
+      locations        = var.enable_geo_restriction ? var.geo_restriction_locations : []
     }
   }
 

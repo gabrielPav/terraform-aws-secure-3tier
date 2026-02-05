@@ -122,6 +122,21 @@ resource "aws_kms_key" "main" {
             "kms:EncryptionContext:aws:cloudtrail:arn" = "arn:aws:cloudtrail:*:${data.aws_caller_identity.current.account_id}:trail/*"
           }
         }
+      },
+      {
+        Sid    = "Allow ELB Log Delivery to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
       }
     ]
   })
@@ -164,6 +179,7 @@ resource "aws_iam_role_policy" "ec2_s3" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowS3AccessFromVPCOnly"
       Effect = "Allow"
       Action = [
         "s3:GetObject",
@@ -175,6 +191,12 @@ resource "aws_iam_role_policy" "ec2_s3" {
         "arn:aws:s3:::${var.project_name}-${var.environment}-*",
         "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
       ]
+      # Restrict S3 access to VPC only - prevents credential abuse from outside VPC
+      Condition = {
+        StringEquals = {
+          "aws:SourceVpc" = var.vpc_id
+        }
+      }
     }]
   })
 }
@@ -187,16 +209,22 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "GetSecretValue"
+        Sid    = "GetSecretValueFromVPCOnly"
         Effect = "Allow"
         Action = [
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ]
         Resource = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:rds!*"
+        # Restrict Secrets Manager access to VPC only - prevents credential abuse from outside VPC
+        Condition = {
+          StringEquals = {
+            "aws:SourceVpc" = var.vpc_id
+          }
+        }
       },
       {
-        Sid    = "DecryptSecret"
+        Sid    = "DecryptSecretFromVPCOnly"
         Effect = "Allow"
         Action = [
           "kms:Decrypt"
@@ -205,6 +233,7 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
         Condition = {
           StringEquals = {
             "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+            "aws:SourceVpc"  = var.vpc_id
           }
         }
       }
@@ -230,6 +259,15 @@ resource "aws_s3_bucket" "cloudtrail" {
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-cloudtrail"
   })
+}
+
+resource "aws_s3_bucket_ownership_controls" "cloudtrail" {
+  count  = var.enable_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "cloudtrail" {
@@ -303,7 +341,6 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
         Resource = "${aws_s3_bucket.cloudtrail[0].arn}/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
         Condition = {
           StringEquals = {
-            "s3:x-amz-acl"  = "bucket-owner-full-control"
             "AWS:SourceArn" = "arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.cloudtrail_name}"
           }
         }
@@ -312,10 +349,62 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
   })
 }
 
+# Lifecycle configuration for CloudTrail bucket
+resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail" {
+  count  = var.enable_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
+
+  rule {
+    id     = "transition-to-ia"
+    status = "Enabled"
+
+    filter {}
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
+
+  rule {
+    id     = "transition-to-glacier"
+    status = "Enabled"
+
+    filter {}
+
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+  }
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
 resource "aws_cloudwatch_log_group" "cloudtrail" {
   count             = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
   name              = "/aws/cloudtrail/${var.cloudtrail_name}"
-  retention_in_days = 30
+  retention_in_days = 365
   kms_key_id        = aws_kms_key.main.arn
 
   tags = var.tags

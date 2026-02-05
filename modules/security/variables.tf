@@ -9,7 +9,7 @@ variable "environment" {
 }
 
 variable "vpc_id" {
-  description = "VPC ID"
+  description = "VPC ID for aws:SourceVpc IAM conditions"
   type        = string
 }
 

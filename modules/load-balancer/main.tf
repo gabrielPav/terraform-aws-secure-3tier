@@ -86,6 +86,19 @@ resource "aws_s3_bucket_versioning" "alb_logs_versioning" {
   }
 }
 
+# Enable KMS encryption for the ALB logs bucket
+resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
+  count  = var.enable_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.alb_logs[0].id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = var.kms_key_arn
+    }
+  }
+}
+
 # Configure S3 server access logging for the ALB logs bucket itself
 resource "aws_s3_bucket_logging" "alb_logs_logging" {
   count  = var.enable_access_logs ? 1 : 0
@@ -93,6 +106,16 @@ resource "aws_s3_bucket_logging" "alb_logs_logging" {
 
   target_bucket = var.s3_access_logs_bucket_id
   target_prefix = "alb-logs-bucket/"
+}
+
+# Disable ACLs and enforce bucket owner ownership
+resource "aws_s3_bucket_ownership_controls" "alb_logs" {
+  count  = var.enable_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.alb_logs[0].id
+
+  rule {
+    object_ownership = "BucketOwnerEnforced"
+  }
 }
 
 # Block all public access to the ALB logs bucket
@@ -132,14 +155,61 @@ resource "aws_s3_bucket_policy" "alb_logs" {
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.alb_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
-        Condition = {
-          StringEquals = {
-            "s3:x-amz-acl" = "bucket-owner-full-control"
-          }
-        }
       }
     ]
   })
+}
+
+# Lifecycle configuration for ALB logs bucket
+resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
+  count  = var.enable_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.alb_logs[0].id
+
+  rule {
+    id     = "transition-to-ia"
+    status = "Enabled"
+
+    filter {}
+
+    transition {
+      days          = 30
+      storage_class = "STANDARD_IA"
+    }
+  }
+
+  rule {
+    id     = "transition-to-glacier"
+    status = "Enabled"
+
+    filter {}
+
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+  }
+
+  rule {
+    id     = "expire-old-logs"
+    status = "Enabled"
+
+    filter {}
+
+    expiration {
+      days = 365
+    }
+  }
+
+  rule {
+    id     = "abort-incomplete-multipart-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
 }
 
 # ============================================================================

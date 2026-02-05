@@ -42,7 +42,7 @@ module "networking" {
   single_nat_gateway           = var.environment == "production" ? false : true
   enable_flow_logs             = true
   enable_s3_endpoint           = true
-  enable_dynamodb_endpoint     = true
+  enable_dynamodb_endpoint     = false  # Not used - project uses RDS
   enable_interface_endpoints   = var.enable_vpc_endpoints
   enable_eic_endpoint          = var.enable_eic_endpoint
   kms_key_arn                  = module.security.kms_key_arn
@@ -175,6 +175,7 @@ module "load_balancer" {
   alb_internal               = false
   enable_access_logs         = true
   s3_access_logs_bucket_id   = module.storage.s3_access_logs_bucket_id
+  kms_key_arn                = module.security.kms_key_arn
   enable_deletion_protection = var.environment == "production" ? true : false
   enable_http2               = true
   enable_cross_zone          = true
@@ -227,6 +228,11 @@ module "cdn" {
 
   # WAF (optional)
   enable_waf = var.enable_waf
+
+  # Geo Restriction (optional)
+  enable_geo_restriction    = var.enable_geo_restriction
+  geo_restriction_type      = var.geo_restriction_type
+  geo_restriction_locations = var.geo_restriction_locations
 
   tags = var.common_tags
 }

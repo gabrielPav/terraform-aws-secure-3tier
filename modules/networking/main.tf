@@ -31,6 +31,16 @@ resource "aws_vpc" "main" {
   })
 }
 
+# Lock down the default security group (AWS creates one automatically)
+# By not specifying any ingress/egress rules, all traffic is denied
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main.id
+
+  tags = merge(var.tags, {
+    Name = "${var.vpc_name}-default-sg-restricted"
+  })
+}
+
 # Internet Gateway
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
@@ -142,7 +152,7 @@ resource "aws_cloudwatch_log_group" "flow_logs" {
   count = var.enable_flow_logs ? 1 : 0
 
   name              = "/aws/vpc/${var.vpc_name}-flow-logs"
-  retention_in_days = 30
+  retention_in_days = 365
   kms_key_id        = var.kms_key_arn
 
   tags = var.tags
@@ -175,17 +185,25 @@ resource "aws_iam_role_policy" "flow_log" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams"
-      ]
-      Resource = "*"
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:DescribeLogGroups"
+        ]
+        Resource = aws_cloudwatch_log_group.flow_logs[0].arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "${aws_cloudwatch_log_group.flow_logs[0].arn}:*"
+      }
+    ]
   })
 }
 

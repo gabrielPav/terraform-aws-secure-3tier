@@ -60,6 +60,12 @@ variable "s3_access_logs_bucket_id" {
   type        = string
 }
 
+variable "kms_key_arn" {
+  description = "KMS key ARN for encrypting ALB logs bucket"
+  type        = string
+  default     = null
+}
+
 variable "enable_deletion_protection" {
   description = "Enable deletion protection for the ALB"
   type        = bool

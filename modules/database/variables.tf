@@ -96,6 +96,12 @@ variable "kms_key_id" {
   default     = null
 }
 
+variable "deletion_protection" {
+  description = "Enable deletion protection for the RDS instance"
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)
