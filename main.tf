@@ -100,6 +100,10 @@ module "storage" {
   s3_bucket_name       = "${var.project_name}-${var.environment}-assets"
   enable_s3_versioning = true
 
+  # Object Lock (Governance Mode)
+  enable_s3_object_lock         = var.enable_s3_object_lock
+  s3_object_lock_retention_days = var.s3_object_lock_retention_days
+
   tags = var.common_tags
 }
 

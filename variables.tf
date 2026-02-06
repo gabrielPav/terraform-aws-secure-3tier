@@ -72,6 +72,27 @@ variable "enable_eic_endpoint" {
 }
 
 # ============================================================================
+# Storage Variables
+# ============================================================================
+
+variable "enable_s3_object_lock" {
+  description = "Enable S3 Object Lock with Governance Mode on the assets bucket. Prevents object deletion or overwrite for the retention period. Note: enabling this on an existing bucket forces bucket replacement."
+  type        = bool
+  default     = false
+}
+
+variable "s3_object_lock_retention_days" {
+  description = "Number of days to retain objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.s3_object_lock_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
+# ============================================================================
 # Compute Variables
 # ============================================================================
 

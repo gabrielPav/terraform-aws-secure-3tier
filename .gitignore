@@ -23,9 +23,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# Note: .terraform.lock.hcl is intentionally NOT ignored at the root level.
-# It should be committed to ensure reproducible provider installs.
-# However, lock files inside module directories are invalid and must be ignored.
+# Ignore lock files
+.terraform.lock.hcl
 modules/**/.terraform.lock.hcl
 
 # Ignore backup files

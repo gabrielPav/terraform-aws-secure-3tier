@@ -18,7 +18,8 @@ data "aws_caller_identity" "current" {}
 # ============================================================================
 
 resource "aws_s3_bucket" "main" {
-  bucket = var.s3_bucket_name
+  bucket              = var.s3_bucket_name
+  object_lock_enabled = var.enable_s3_object_lock
 
   tags = merge(var.tags, {
     Name = var.s3_bucket_name
@@ -43,12 +44,26 @@ resource "aws_s3_bucket_public_access_block" "main" {
 }
 
 resource "aws_s3_bucket_versioning" "main" {
-  count  = var.enable_s3_versioning ? 1 : 0
+  count  = var.enable_s3_versioning || var.enable_s3_object_lock ? 1 : 0
   bucket = aws_s3_bucket.main.id
 
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+resource "aws_s3_bucket_object_lock_configuration" "main" {
+  count  = var.enable_s3_object_lock ? 1 : 0
+  bucket = aws_s3_bucket.main.id
+
+  rule {
+    default_retention {
+      mode = "GOVERNANCE"
+      days = var.s3_object_lock_retention_days
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.main]
 }
 
 # ============================================================================

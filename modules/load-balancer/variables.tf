@@ -153,12 +153,12 @@ variable "ssl_policy" {
   description = <<-EOT
     SSL/TLS policy for the HTTPS listener.
     Recommended policies:
-    - ELBSecurityPolicy-TLS13-1-2-2021-06: TLS 1.2 and 1.3 (recommended)
-    - ELBSecurityPolicy-TLS13-1-2-Res-2021-06: TLS 1.2 and 1.3 with restricted ciphers
-    See: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-https-listener.html
+    - ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09: TLS 1.2/1.3, restricted ciphers, post-quantum key exchange (recommended)
+    - ELBSecurityPolicy-TLS13-1-2-Res-2021-06: TLS 1.2/1.3, restricted ciphers (no post-quantum)
+    See: https://docs.aws.amazon.com/elasticloadbalancing/latest/application/describe-ssl-policies.html
   EOT
   type        = string
-  default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  default     = "ELBSecurityPolicy-TLS13-1-2-Res-PQ-2025-09"
 }
 
 variable "restrict_ingress_to_cloudfront" {
