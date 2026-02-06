@@ -19,12 +19,6 @@ variable "enable_s3_versioning" {
   default     = true
 }
 
-variable "enable_s3_encryption" {
-  description = "Enable S3 encryption"
-  type        = bool
-  default     = true
-}
-
 variable "kms_key_id" {
   description = "KMS key ID for encryption"
   type        = string

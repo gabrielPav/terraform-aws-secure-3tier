@@ -1,14 +1,3 @@
-# ============================================================================
-# Load Balancer Module - Variables
-# ============================================================================
-# This file defines all input variables for the ALB module including
-# HTTPS/SSL configuration with ACM certificate and Route53 DNS validation.
-# ============================================================================
-
-# ============================================================================
-# General Configuration Variables
-# ============================================================================
-
 variable "project_name" {
   description = "Project name used for resource naming"
   type        = string
@@ -38,10 +27,6 @@ variable "target_group_arns" {
   description = "List of target group ARNs to forward traffic to"
   type        = list(string)
 }
-
-# ============================================================================
-# ALB Configuration Variables
-# ============================================================================
 
 variable "alb_internal" {
   description = "Whether the ALB is internal (true) or internet-facing (false)"
@@ -75,7 +60,7 @@ variable "enable_deletion_protection" {
 variable "enable_drop_invalid_headers" {
   description = "Enable dropping of invalid HTTP headers"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_http2" {
@@ -89,13 +74,6 @@ variable "enable_cross_zone" {
   type        = bool
   default     = true
 }
-
-# ============================================================================
-# HTTPS/SSL Configuration Variables
-# ============================================================================
-# These variables enable automatic SSL certificate provisioning via ACM
-# with DNS validation through Route53.
-# ============================================================================
 
 variable "enable_https" {
   description = "Enable HTTPS listener on port 443"
@@ -154,6 +132,23 @@ variable "create_route53_zone" {
   default     = false
 }
 
+variable "enable_dns_query_logging" {
+  description = <<-EOT
+    Enable DNS query logging for Route53 hosted zone.
+    Logs are sent to CloudWatch Logs in us-east-1 (Route53 requirement).
+    Useful for security analysis and troubleshooting.
+    Note: Only applies when create_route53_zone = true.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "dns_query_log_retention_days" {
+  description = "Number of days to retain DNS query logs in CloudWatch"
+  type        = number
+  default     = 30
+}
+
 variable "ssl_policy" {
   description = <<-EOT
     SSL/TLS policy for the HTTPS listener.
@@ -166,6 +161,25 @@ variable "ssl_policy" {
   default     = "ELBSecurityPolicy-TLS13-1-2-2021-06"
 }
 
+variable "restrict_ingress_to_cloudfront" {
+  description = <<-EOT
+    Restrict ALB ingress to CloudFront IP ranges only using the AWS managed prefix list.
+    When true, users cannot bypass CloudFront to access the ALB directly.
+    Set to false when CloudFront is not in front of the ALB.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "create_dns_record" {
+  description = <<-EOT
+    Whether to create a Route53 A record pointing domain_name to the ALB.
+    Set to false when CloudFront is handling DNS (CDN module creates its own record).
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "redirect_http_to_https" {
   description = <<-EOT
     When HTTPS is enabled, redirect all HTTP (port 80) traffic to HTTPS (port 443).
@@ -174,10 +188,6 @@ variable "redirect_http_to_https" {
   type        = bool
   default     = true
 }
-
-# ============================================================================
-# Tagging Variables
-# ============================================================================
 
 variable "tags" {
   description = "Tags to apply to all resources created by this module"

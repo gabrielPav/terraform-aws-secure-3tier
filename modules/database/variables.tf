@@ -84,12 +84,6 @@ variable "backup_retention_period" {
   default     = 7
 }
 
-variable "enable_encryption" {
-  description = "Enable encryption"
-  type        = bool
-  default     = true
-}
-
 variable "kms_key_id" {
   description = "KMS key ID"
   type        = string
@@ -100,6 +94,24 @@ variable "deletion_protection" {
   description = "Enable deletion protection for the RDS instance"
   type        = bool
   default     = true
+}
+
+variable "enhanced_monitoring_interval" {
+  description = "Enhanced monitoring interval in seconds (0 to disable, 1, 5, 10, 15, 30, or 60)"
+  type        = number
+  default     = 0
+}
+
+variable "performance_insights_enabled" {
+  description = "Enable Performance Insights for RDS"
+  type        = bool
+  default     = false
+}
+
+variable "performance_insights_retention_period" {
+  description = "Performance Insights retention period in days (7 for free tier, 31-731 for paid)"
+  type        = number
+  default     = 7
 }
 
 variable "tags" {

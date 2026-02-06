@@ -3,6 +3,11 @@ variable "vpc_name" {
   type        = string
 }
 
+variable "project_name" {
+  description = "Project name for resource naming and S3 bucket restrictions"
+  type        = string
+}
+
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
@@ -34,12 +39,6 @@ variable "enable_flow_logs" {
 
 variable "enable_s3_endpoint" {
   description = "Enable S3 VPC endpoint"
-  type        = bool
-  default     = true
-}
-
-variable "enable_dynamodb_endpoint" {
-  description = "Enable DynamoDB VPC endpoint"
   type        = bool
   default     = true
 }

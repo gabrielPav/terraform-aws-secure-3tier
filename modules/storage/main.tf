@@ -182,11 +182,25 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
           Service = "delivery.logs.amazonaws.com"
         }
         Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.s3_access_logs.arn}/cloudfront/*"
+        Resource = "${aws_s3_bucket.s3_access_logs.arn}/*"
         Condition = {
           StringEquals = {
+            "s3:x-amz-acl"     = "bucket-owner-full-control"
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
+        }
+      },
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.s3_access_logs.arn,
+          "${aws_s3_bucket.s3_access_logs.arn}/*"
+        ]
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
         }
       }
     ]
@@ -202,15 +216,7 @@ resource "aws_s3_bucket_logging" "main" {
 }
 
 # S3 access logs bucket - self logging configuration
-resource "aws_s3_bucket_logging" "s3_access_logs" {
-  bucket = aws_s3_bucket.s3_access_logs.id
-
-  target_bucket = aws_s3_bucket.s3_access_logs.id
-  target_prefix = "self-access-logs/"
-}
-
 resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
-  count  = var.enable_s3_encryption ? 1 : 0
   bucket = aws_s3_bucket.main.id
 
   rule {

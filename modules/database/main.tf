@@ -42,13 +42,35 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_ec2" {
   referenced_security_group_id = var.allowed_security_group_id
 }
 
-# Egress rule: Allow all outbound
-resource "aws_vpc_security_group_egress_rule" "rds_allow_all_outbound" {
-  security_group_id = aws_security_group.rds.id
+# Note: No egress rule defined - RDS only receives connections, it doesn't
+# initiate outbound connections. AWS Security Groups are stateful, so response
+# traffic to EC2 queries is automatically allowed on the established connection.
 
-  description = "Allow all outbound"
-  ip_protocol = "-1"
-  cidr_ipv4   = "0.0.0.0/0"
+# IAM Role for RDS Enhanced Monitoring
+resource "aws_iam_role" "rds_enhanced_monitoring" {
+  count = var.enhanced_monitoring_interval > 0 ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-rds-monitoring-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "monitoring.rds.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
+  count = var.enhanced_monitoring_interval > 0 ? 1 : 0
+
+  role       = aws_iam_role.rds_enhanced_monitoring[0].name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
 # DB Parameter Group
@@ -108,8 +130,18 @@ resource "aws_db_instance" "main" {
 
   enabled_cloudwatch_logs_exports = ["error", "general", "slowquery"]
 
+  # Enhanced Monitoring
+  monitoring_interval = var.enhanced_monitoring_interval
+  monitoring_role_arn = var.enhanced_monitoring_interval > 0 ? aws_iam_role.rds_enhanced_monitoring[0].arn : null
+
+  # Performance Insights
+  performance_insights_enabled          = var.performance_insights_enabled
+  performance_insights_retention_period = var.performance_insights_enabled ? var.performance_insights_retention_period : null
+  performance_insights_kms_key_id       = var.performance_insights_enabled ? var.kms_key_id : null
+
   deletion_protection        = var.deletion_protection
   skip_final_snapshot        = var.environment == "production" ? false : true
+  final_snapshot_identifier  = var.environment == "production" ? "${var.project_name}-${var.environment}-db-final-snapshot" : null
   copy_tags_to_snapshot      = true
   auto_minor_version_upgrade = true
 

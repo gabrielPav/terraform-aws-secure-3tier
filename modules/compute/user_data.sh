@@ -1,8 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-yum update -y
-yum install -y httpd php php-mysqlnd
+# Amazon Linux 2023 uses dnf package manager
+# Pin PHP to 8.3 (security support until Dec 2027) for deterministic builds
+# Skipping 'dnf update -y' to avoid non-deterministic full system updates;
+# security patches are applied via AMI updates and instance refresh
+dnf install -y httpd php8.3 php8.3-mysqlnd
 
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)

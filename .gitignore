@@ -12,7 +12,6 @@ crash.*.log
 # Exclude all .tfvars files, which are likely to contain sensitive data
 *.tfvars
 *.tfvars.json
-*.tfvars.example
 
 # Ignore override files
 override.tf
@@ -24,8 +23,10 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# Ignore lock files (optional - uncomment if you want to ignore)
-.terraform.lock.hcl
+# Note: .terraform.lock.hcl is intentionally NOT ignored at the root level.
+# It should be committed to ensure reproducible provider installs.
+# However, lock files inside module directories are invalid and must be ignored.
+modules/**/.terraform.lock.hcl
 
 # Ignore backup files
 *.backup

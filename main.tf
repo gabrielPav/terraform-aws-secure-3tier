@@ -18,6 +18,23 @@ provider "aws" {
   }
 }
 
+# Provider alias for us-east-1 region
+# Required for CloudFront ACM certificates which must be in us-east-1
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+  default_tags {
+    tags = merge(
+      var.common_tags,
+      {
+        ManagedBy   = "Terraform"
+        Environment = var.environment
+        Project     = var.project_name
+      }
+    )
+  }
+}
+
 # ============================================================================
 # Data Sources
 # ============================================================================
@@ -35,6 +52,7 @@ data "aws_availability_zones" "available" {
 module "networking" {
   source = "./modules/networking"
 
+  project_name                 = var.project_name
   vpc_name                     = "${var.project_name}-${var.environment}-vpc"
   vpc_cidr                     = var.vpc_cidr
   number_of_availability_zones = var.number_of_availability_zones
@@ -42,7 +60,6 @@ module "networking" {
   single_nat_gateway           = var.environment == "production" ? false : true
   enable_flow_logs             = true
   enable_s3_endpoint           = true
-  enable_dynamodb_endpoint     = false  # Not used - project uses RDS
   enable_interface_endpoints   = var.enable_vpc_endpoints
   enable_eic_endpoint          = var.enable_eic_endpoint
   kms_key_arn                  = module.security.kms_key_arn
@@ -75,14 +92,13 @@ module "security" {
 module "storage" {
   source = "./modules/storage"
 
-  project_name       = var.project_name
-  environment        = var.environment
-  kms_key_id         = module.security.kms_key_id
+  project_name = var.project_name
+  environment  = var.environment
+  kms_key_id   = module.security.kms_key_id
 
   # S3 Configuration
   s3_bucket_name       = "${var.project_name}-${var.environment}-assets"
   enable_s3_versioning = true
-  enable_s3_encryption = true
 
   tags = var.common_tags
 }
@@ -110,7 +126,6 @@ module "database" {
   db_allocated_storage    = var.rds_allocated_storage
   multi_az                = var.environment == "production" ? true : false
   backup_retention_period = var.rds_backup_retention_period
-  enable_encryption       = true
 
   tags = var.common_tags
 }
@@ -125,7 +140,6 @@ module "compute" {
   project_name       = var.project_name
   environment        = var.environment
   vpc_id             = module.networking.vpc_id
-  public_subnet_ids  = module.networking.public_subnet_ids
   private_subnet_ids = module.networking.private_subnet_ids
   s3_bucket_name     = module.storage.s3_bucket_name
   rds_endpoint       = module.database.rds_address
@@ -138,7 +152,6 @@ module "compute" {
   min_size              = var.asg_min_size
   max_size              = var.asg_max_size
   desired_capacity      = var.asg_desired_capacity
-  enable_ebs_encryption = true
   ebs_volume_size       = var.ebs_volume_size
   ebs_volume_type       = "gp3"
   kms_key_arn           = module.security.kms_key_arn
@@ -163,6 +176,11 @@ module "compute" {
 
 module "load_balancer" {
   source = "./modules/load-balancer"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 
   project_name       = var.project_name
   environment        = var.environment
@@ -202,6 +220,12 @@ module "load_balancer" {
   # HTTPS is enabled if either domain_name or certificate_arn is provided
   enable_https = var.domain_name != "" || var.alb_certificate_arn != ""
 
+  # When CloudFront is enabled, restrict ALB to CloudFront IPs only
+  restrict_ingress_to_cloudfront = var.enable_cloudfront
+
+  # Skip Route53 A record when CloudFront handles DNS
+  create_dns_record = !var.enable_cloudfront
+
   tags = var.common_tags
 }
 
@@ -212,12 +236,19 @@ module "load_balancer" {
 module "cdn" {
   source = "./modules/cdn"
 
+  # Pass both default and us-east-1 providers for ACM certificate creation
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
   project_name                 = var.project_name
   environment                  = var.environment
   alb_dns_name                 = module.load_balancer.alb_dns_name
   alb_zone_id                  = module.load_balancer.alb_zone_id
+  s3_bucket_id                 = module.storage.s3_bucket_name
   s3_bucket_domain_name        = module.storage.s3_bucket_domain_name
-  s3_access_logs_bucket_domain = module.storage.s3_access_logs_bucket_domain
+  s3_access_logs_bucket_arn    = module.storage.s3_access_logs_bucket_arn
 
   # CloudFront Configuration
   enable_cloudfront  = var.enable_cloudfront
@@ -225,6 +256,14 @@ module "cdn" {
   enable_https       = true
   enable_compression = true
   enable_logging     = true
+
+  # ACM Certificate Configuration
+  # CloudFront requires certificates in us-east-1; if deploying to us-east-1,
+  # the ALB certificate is reused, otherwise a new certificate is created
+  domain_name         = var.domain_name
+  aws_region          = var.aws_region
+  route53_zone_id     = module.load_balancer.route53_zone_id
+  alb_certificate_arn = module.load_balancer.acm_certificate_arn
 
   # WAF (optional)
   enable_waf = var.enable_waf
@@ -247,7 +286,7 @@ module "monitoring" {
   project_name    = var.project_name
   environment     = var.environment
   vpc_id          = module.networking.vpc_id
-  alb_arn         = module.load_balancer.alb_arn
+  alb_arn_suffix  = module.load_balancer.alb_arn_suffix
   asg_name        = module.compute.asg_name
   rds_instance_id = module.database.rds_instance_id
 

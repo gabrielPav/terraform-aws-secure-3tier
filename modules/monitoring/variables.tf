@@ -13,8 +13,8 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "alb_arn" {
-  description = "ALB ARN"
+variable "alb_arn_suffix" {
+  description = "ALB ARN suffix for CloudWatch dimensions (e.g., app/my-alb/1234567890)"
   type        = string
   default     = ""
 }
@@ -59,6 +59,12 @@ variable "kms_key_arn" {
   description = "KMS key ARN for CloudWatch log group encryption"
   type        = string
   default     = null
+}
+
+variable "alarm_notification_email" {
+  description = "Email address to receive alarm notifications. If empty, alarms will not send notifications."
+  type        = string
+  default     = ""
 }
 
 variable "tags" {

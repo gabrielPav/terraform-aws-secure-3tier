@@ -47,6 +47,18 @@ variable "enable_s3_access_logging" {
   default     = true
 }
 
+variable "enable_cloudtrail_sns_notifications" {
+  description = "Enable SNS notifications for CloudTrail events and security alarms"
+  type        = bool
+  default     = false
+}
+
+variable "alarm_notification_email" {
+  description = "Email address to receive security alarm notifications. Required when enable_cloudtrail_sns_notifications is true."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)

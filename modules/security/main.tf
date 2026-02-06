@@ -137,6 +137,11 @@ resource "aws_kms_key" "main" {
           "kms:DescribeKey"
         ]
         Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       }
     ]
   })
@@ -144,6 +149,7 @@ resource "aws_kms_key" "main" {
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-kms-key"
   })
+
 }
 
 resource "aws_kms_alias" "main" {
@@ -344,6 +350,19 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
             "AWS:SourceArn" = "arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.cloudtrail_name}"
           }
         }
+      },
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.cloudtrail[0].arn,
+          "${aws_s3_bucket.cloudtrail[0].arn}/*"
+        ]
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
+        }
       }
     ]
   })
@@ -459,6 +478,8 @@ resource "aws_cloudtrail" "main" {
   cloud_watch_logs_group_arn = var.enable_cloudwatch ? "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*" : null
   cloud_watch_logs_role_arn  = var.enable_cloudwatch ? aws_iam_role.cloudtrail_cloudwatch[0].arn : null
 
+  sns_topic_name = var.enable_cloudtrail_sns_notifications ? aws_sns_topic.cloudtrail_notifications[0].arn : null
+
   event_selector {
     read_write_type           = "All"
     include_management_events = true
@@ -470,6 +491,111 @@ resource "aws_cloudtrail" "main" {
   }
 
   depends_on = [aws_s3_bucket_policy.cloudtrail]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# SNS Topic for CloudTrail Notifications and Security Alarms
+# ============================================================================
+
+resource "aws_sns_topic" "cloudtrail_notifications" {
+  count = var.enable_cloudtrail && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name              = "${var.project_name}-${var.environment}-cloudtrail-notifications"
+  kms_master_key_id = aws_kms_key.main.id
+
+  tags = var.tags
+
+  lifecycle {
+    precondition {
+      condition     = var.alarm_notification_email != ""
+      error_message = "alarm_notification_email is required when enable_cloudtrail_sns_notifications is true."
+    }
+  }
+}
+
+resource "aws_sns_topic_policy" "cloudtrail_notifications" {
+  count = var.enable_cloudtrail && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  arn = aws_sns_topic.cloudtrail_notifications[0].arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowCloudTrailPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudtrail.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.cloudtrail_notifications[0].arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudtrail.main[0].arn
+          }
+        }
+      },
+      {
+        Sid    = "AllowCloudWatchAlarmsPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudwatch.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.cloudtrail_notifications[0].arn
+      }
+    ]
+  })
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  count = var.enable_cloudtrail && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  topic_arn = aws_sns_topic.cloudtrail_notifications[0].arn
+  protocol  = "email"
+  endpoint  = var.alarm_notification_email
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for IAM Policy Changes
+# ============================================================================
+# Detects unauthorized or suspicious IAM policy modifications including:
+# - Policy creation, deletion, and version changes
+# - Policy attachments and detachments to users, roles, and groups
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "iam_policy_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-iam-policy-changes"
+  pattern        = "{($.eventName=DeleteGroupPolicy)||($.eventName=DeleteRolePolicy)||($.eventName=DeleteUserPolicy)||($.eventName=PutGroupPolicy)||($.eventName=PutRolePolicy)||($.eventName=PutUserPolicy)||($.eventName=CreatePolicy)||($.eventName=DeletePolicy)||($.eventName=CreatePolicyVersion)||($.eventName=DeletePolicyVersion)||($.eventName=AttachRolePolicy)||($.eventName=DetachRolePolicy)||($.eventName=AttachUserPolicy)||($.eventName=DetachUserPolicy)||($.eventName=AttachGroupPolicy)||($.eventName=DetachGroupPolicy)}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "IAMPolicyChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "iam_policy_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-iam-policy-changes"
+  alarm_description   = "Alerts when IAM policies are created, modified, attached, or deleted"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "IAMPolicyChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
 
   tags = var.tags
 }

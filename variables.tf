@@ -25,11 +25,9 @@ variable "environment" {
 }
 
 variable "common_tags" {
-  description = "Common tags to apply to all resources"
+  description = "Common tags to apply to all resources. Note: ManagedBy, Environment, and Project are set automatically via provider default_tags."
   type        = map(string)
-  default = {
-    ManagedBy = "Terraform"
-  }
+  default     = {}
 }
 
 # ============================================================================
@@ -40,19 +38,30 @@ variable "vpc_cidr" {
   description = "CIDR block for the VPC"
   type        = string
   default     = "10.0.0.0/16"
+
+  validation {
+    condition     = can(cidrhost(var.vpc_cidr, 0))
+    error_message = "vpc_cidr must be a valid CIDR block (e.g., 10.0.0.0/16)."
+  }
 }
 
 variable "number_of_availability_zones" {
   description = "Number of availability zones to use"
   type        = number
   default     = 3
+
+  validation {
+    condition     = var.number_of_availability_zones >= 2 && var.number_of_availability_zones <= 6
+    error_message = "number_of_availability_zones must be between 2 and 6 for high availability."
+  }
 }
 
 variable "enable_vpc_endpoints" {
   description = "Map of interface VPC endpoints to enable"
   type        = map(bool)
   default = {
-    logs = true
+    logs           = true
+    secretsmanager = true
   }
 }
 
@@ -107,12 +116,12 @@ variable "rds_instance_class" {
 }
 
 variable "rds_engine" {
-  description = "RDS engine type"
+  description = "RDS engine type. Only MySQL-compatible engines are supported (application uses mysqli PHP driver)."
   type        = string
   default     = "mysql"
   validation {
-    condition     = contains(["mysql", "postgres", "mariadb", "oracle-ee", "sqlserver-ee"], var.rds_engine)
-    error_message = "RDS engine must be one of: mysql, postgres, mariadb, oracle-ee, sqlserver-ee."
+    condition     = contains(["mysql", "mariadb"], var.rds_engine)
+    error_message = "RDS engine must be mysql or mariadb. Other engines are incompatible with the application's mysqli PHP driver."
   }
 }
 
@@ -131,8 +140,7 @@ variable "rds_database_name" {
 variable "rds_username" {
   description = "RDS master username"
   type        = string
-  default     = "dbmaster"
-  sensitive   = true
+  default     = "rdsdbadmin"
 }
 
 variable "rds_allocated_storage" {
@@ -145,6 +153,11 @@ variable "rds_backup_retention_period" {
   description = "RDS backup retention period in days"
   type        = number
   default     = 7
+
+  validation {
+    condition     = var.rds_backup_retention_period >= 1 && var.rds_backup_retention_period <= 35
+    error_message = "rds_backup_retention_period must be between 1 and 35 days."
+  }
 }
 
 # ============================================================================
@@ -163,13 +176,20 @@ variable "alb_certificate_arn" {
 
 variable "domain_name" {
   description = <<-EOT
-    Fully Qualified Domain Name (FQDN) for the HTTPS endpoint.
-    When provided (and alb_certificate_arn is empty), Terraform will:
-    1. Request an ACM certificate for this domain
+    Fully Qualified Domain Name (FQDN) for the application (REQUIRED).
+
+    This is required for production workloads because:
+    - CloudFront is enabled by default for CDN, DDoS protection, and edge caching
+    - CloudFront requires an ACM certificate for TLS 1.2 enforcement
+    - ACM certificates require a custom domain for DNS validation
+
+    Terraform will:
+    1. Request ACM certificate(s) for this domain
     2. Look up the Route53 hosted zone for DNS validation
     3. Create DNS records for certificate validation
     4. Configure the ALB HTTPS listener with the validated certificate
-    5. Create a Route53 A record pointing to the ALB
+    5. Configure CloudFront with TLS 1.2 enforcement
+    6. Create Route53 A record pointing to CloudFront
 
     Example: "app.example.com" or "www.webapp.io"
 
@@ -179,11 +199,10 @@ variable "domain_name" {
     - DNS propagation and certificate validation typically take 2-5 minutes
   EOT
   type        = string
-  default     = ""
 
   validation {
-    condition     = var.domain_name == "" || can(regex("^[a-zA-Z0-9][a-zA-Z0-9-]*(\\.[a-zA-Z0-9][a-zA-Z0-9-]*)+$", var.domain_name))
-    error_message = "Domain name must be a valid FQDN (e.g., 'app.example.com')."
+    condition     = can(regex("^[a-zA-Z0-9][a-zA-Z0-9-]*(\\.[a-zA-Z0-9][a-zA-Z0-9-]*)+$", var.domain_name))
+    error_message = "domain_name is required and must be a valid FQDN (e.g., 'app.example.com')."
   }
 }
 
@@ -219,7 +238,7 @@ variable "create_route53_zone" {
 # ============================================================================
 
 variable "enable_cloudfront" {
-  description = "Enable CloudFront CDN"
+  description = "Enable CloudFront CDN. Requires domain_name to be set for TLS 1.2 enforcement."
   type        = bool
   default     = true
 }
@@ -227,7 +246,7 @@ variable "enable_cloudfront" {
 variable "enable_waf" {
   description = "Enable WAF for CloudFront"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "enable_geo_restriction" {

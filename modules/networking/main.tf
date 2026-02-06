@@ -238,54 +238,26 @@ resource "aws_vpc_endpoint_policy" "s3" {
 
   vpc_endpoint_id = aws_vpc_endpoint.s3[0].id
 
+  # Restrict S3 access to project-specific buckets only
+  # This prevents compromised EC2 instances from accessing other buckets in the account
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "AllowS3AccessFromVPC"
+        Sid       = "AllowS3AccessToProjectBuckets"
         Effect    = "Allow"
         Principal = "*"
         Action = [
-          "s3:*"
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
         ]
         Resource = [
-          "arn:aws:s3:::*",
-          "arn:aws:s3:::*/*"
+          "arn:aws:s3:::${var.project_name}-*",
+          "arn:aws:s3:::${var.project_name}-*/*"
         ]
-      }
-    ]
-  })
-}
-
-resource "aws_vpc_endpoint" "dynamodb" {
-  count = var.enable_dynamodb_endpoint ? 1 : 0
-
-  vpc_id            = aws_vpc.main.id
-  service_name      = "com.amazonaws.${data.aws_region.current.name}.dynamodb"
-  vpc_endpoint_type = "Gateway"
-  route_table_ids   = concat([aws_route_table.public.id], aws_route_table.private[*].id)
-
-  tags = merge(var.tags, {
-    Name = "${var.vpc_name}-dynamodb-endpoint"
-  })
-}
-
-resource "aws_vpc_endpoint_policy" "dynamodb" {
-  count = var.enable_dynamodb_endpoint ? 1 : 0
-
-  vpc_endpoint_id = aws_vpc_endpoint.dynamodb[0].id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowDynamoDBAccess"
-        Effect    = "Allow"
-        Principal = "*"
-        Action = [
-          "dynamodb:*"
-        ]
-        Resource = "*"
       }
     ]
   })
@@ -315,17 +287,6 @@ resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_https" {
   cidr_ipv4   = var.vpc_cidr
 }
 
-# Egress Rule: Allow all outbound
-resource "aws_vpc_security_group_egress_rule" "vpc_endpoints_all_egress" {
-  count = length(var.enable_interface_endpoints) > 0 ? 1 : 0
-
-  security_group_id = aws_security_group.vpc_endpoints[0].id
-  description       = "Allow all outbound"
-
-  ip_protocol = "-1"
-  cidr_ipv4   = "0.0.0.0/0"
-}
-
 resource "aws_vpc_endpoint" "interface" {
   for_each = var.enable_interface_endpoints
 
@@ -341,22 +302,67 @@ resource "aws_vpc_endpoint" "interface" {
   })
 }
 
-resource "aws_vpc_endpoint_policy" "interface" {
-  for_each = aws_vpc_endpoint.interface
+# ============================================================================
+# VPC Endpoint Policies (Least-Privilege)
+# ============================================================================
 
-  vpc_endpoint_id = each.value.id
+# CloudWatch Logs endpoint policy
+resource "aws_vpc_endpoint_policy" "logs" {
+  count = lookup(var.enable_interface_endpoints, "logs", false) ? 1 : 0
+
+  vpc_endpoint_id = aws_vpc_endpoint.interface["logs"].id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        Sid       = "AllowCloudWatchLogsWrite"
         Effect    = "Allow"
         Principal = "*"
-        Action    = "*"
-        Resource  = "*"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = [
+          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:*",
+          "arn:aws:logs:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:log-group:*:log-stream:*"
+        ]
         Condition = {
           StringEquals = {
-            "aws:SourceVpce" = each.value.id
+            "aws:SourceVpc" = aws_vpc.main.id
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Secrets Manager endpoint policy
+resource "aws_vpc_endpoint_policy" "secretsmanager" {
+  count = lookup(var.enable_interface_endpoints, "secretsmanager", false) ? 1 : 0
+
+  vpc_endpoint_id = aws_vpc_endpoint.interface["secretsmanager"].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowSecretsManagerAccess"
+        Effect    = "Allow"
+        Principal = "*"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = [
+          "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:rds!*"
+        ]
+        Condition = {
+          StringEquals = {
+            "aws:SourceVpc" = aws_vpc.main.id
           }
         }
       }

@@ -106,8 +106,35 @@ output "cloudfront_distribution_id" {
 }
 
 output "cloudfront_domain_name" {
-  description = "CloudFront domain name"
+  description = "CloudFront distribution domain name (*.cloudfront.net)"
   value       = module.cdn.cloudfront_domain_name
+}
+
+output "cloudfront_custom_domain_url" {
+  description = <<-EOT
+    The custom domain URL for accessing your application via CloudFront.
+    This is the primary URL users should use to access your application.
+    Traffic flows: User -> CloudFront (edge) -> ALB -> EC2
+  EOT
+  value       = module.cdn.cloudfront_custom_domain_url
+}
+
+output "cloudfront_certificate_arn" {
+  description = <<-EOT
+    The ARN of the ACM certificate used by CloudFront.
+    - If deployed to us-east-1: Same as ALB certificate
+    - If deployed to other regions: Separate certificate in us-east-1
+  EOT
+  value       = module.cdn.cloudfront_certificate_arn
+}
+
+output "cloudfront_certificate_created" {
+  description = <<-EOT
+    Whether a separate ACM certificate was created for CloudFront.
+    - true: Deployed to non-us-east-1 region, new cert created in us-east-1
+    - false: Deployed to us-east-1, ALB certificate is reused
+  EOT
+  value       = module.cdn.cloudfront_certificate_created
 }
 
 # Database Outputs

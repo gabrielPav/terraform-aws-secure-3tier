@@ -11,6 +11,8 @@ terraform {
   }
 }
 
+data "aws_region" "current" {}
+
 # CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "app" {
   name              = "/aws/${var.project_name}/${var.environment}/application"
@@ -37,15 +39,15 @@ resource "aws_cloudwatch_dashboard" "main" {
 
         properties = {
           metrics = [
-            ["AWS/ApplicationELB", "RequestCount", { "stat" = "Sum" }],
-            [".", "TargetResponseTime", { "stat" = "Average" }],
-            [".", "HTTPCode_Target_2XX_Count", { "stat" = "Sum" }],
-            [".", "HTTPCode_Target_4XX_Count", { "stat" = "Sum" }],
-            [".", "HTTPCode_Target_5XX_Count", { "stat" = "Sum" }]
+            ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_arn_suffix, { "stat" = "Sum" }],
+            [".", "TargetResponseTime", ".", ".", { "stat" = "Average" }],
+            [".", "HTTPCode_Target_2XX_Count", ".", ".", { "stat" = "Sum" }],
+            [".", "HTTPCode_Target_4XX_Count", ".", ".", { "stat" = "Sum" }],
+            [".", "HTTPCode_Target_5XX_Count", ".", ".", { "stat" = "Sum" }]
           ]
           period = 300
           stat   = "Average"
-          region = "us-east-1"
+          region = data.aws_region.current.name
           title  = "ALB Metrics"
         }
       },
@@ -58,13 +60,13 @@ resource "aws_cloudwatch_dashboard" "main" {
 
         properties = {
           metrics = [
-            ["AWS/AutoScaling", "GroupDesiredCapacity", { "stat" = "Average" }],
-            [".", "GroupInServiceInstances", { "stat" = "Average" }],
-            [".", "GroupTotalInstances", { "stat" = "Average" }]
+            ["AWS/AutoScaling", "GroupDesiredCapacity", "AutoScalingGroupName", var.asg_name, { "stat" = "Average" }],
+            [".", "GroupInServiceInstances", ".", ".", { "stat" = "Average" }],
+            [".", "GroupTotalInstances", ".", ".", { "stat" = "Average" }]
           ]
           period = 300
           stat   = "Average"
-          region = "us-east-1"
+          region = data.aws_region.current.name
           title  = "Auto Scaling Metrics"
         }
       },
@@ -77,18 +79,42 @@ resource "aws_cloudwatch_dashboard" "main" {
 
         properties = {
           metrics = [
-            ["AWS/RDS", "CPUUtilization", { "stat" = "Average" }],
-            [".", "DatabaseConnections", { "stat" = "Average" }],
-            [".", "FreeableMemory", { "stat" = "Average" }]
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", var.rds_instance_id, { "stat" = "Average" }],
+            [".", "DatabaseConnections", ".", ".", { "stat" = "Average" }],
+            [".", "FreeableMemory", ".", ".", { "stat" = "Average" }]
           ]
           period = 300
           stat   = "Average"
-          region = "us-east-1"
+          region = data.aws_region.current.name
           title  = "RDS Metrics"
         }
       }
     ]
   })
+}
+
+# ============================================================================
+# SNS Topic for Alarm Notifications
+# ============================================================================
+# Only created when alarm_notification_email is provided.
+# Email subscription requires manual confirmation via email link.
+# ============================================================================
+
+resource "aws_sns_topic" "alarms" {
+  count = var.alarm_notification_email != "" ? 1 : 0
+
+  name              = "${var.project_name}-${var.environment}-alarm-notifications"
+  kms_master_key_id = var.kms_key_arn
+
+  tags = var.tags
+}
+
+resource "aws_sns_topic_subscription" "email" {
+  count = var.alarm_notification_email != "" ? 1 : 0
+
+  topic_arn = aws_sns_topic.alarms[0].arn
+  protocol  = "email"
+  endpoint  = var.alarm_notification_email
 }
 
 # CloudWatch Alarms
@@ -104,10 +130,11 @@ resource "aws_cloudwatch_metric_alarm" "alb_high_5xx" {
   statistic           = "Sum"
   threshold           = 10
   alarm_description   = "This metric monitors ALB 5xx errors"
-  alarm_actions       = []
+  alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
   dimensions = {
-    LoadBalancer = var.alb_arn
+    LoadBalancer = var.alb_arn_suffix
   }
 
   tags = var.tags
@@ -125,7 +152,8 @@ resource "aws_cloudwatch_metric_alarm" "asg_cpu_high" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "This metric monitors EC2 CPU utilization"
-  alarm_actions       = []
+  alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
   dimensions = {
     AutoScalingGroupName = var.asg_name
@@ -146,7 +174,8 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "This metric monitors RDS CPU utilization"
-  alarm_actions       = []
+  alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
   dimensions = {
     DBInstanceIdentifier = var.rds_instance_id

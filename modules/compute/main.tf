@@ -11,18 +11,24 @@ terraform {
   }
 }
 
+# Amazon Linux 2023 AMI (Long-term support until 2028)
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+    values = ["al2023-ami-*-x86_64"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
   }
 }
 
@@ -42,7 +48,7 @@ resource "aws_launch_template" "main" {
     ebs {
       volume_size           = var.ebs_volume_size
       volume_type           = var.ebs_volume_type
-      encrypted             = var.enable_ebs_encryption
+      encrypted             = true
       kms_key_id            = var.kms_key_arn
       delete_on_termination = true
     }
@@ -167,17 +173,17 @@ resource "aws_vpc_security_group_egress_rule" "ec2_https_egress" {
   description = "Allow HTTPS for updates and API calls"
 }
 
-# Egress: Allow MySQL
+# Egress: Allow database traffic
 resource "aws_vpc_security_group_egress_rule" "ec2_egress_rds" {
   count = length(var.allowed_security_group_id)
 
   security_group_id            = aws_security_group.ec2.id
   referenced_security_group_id = var.allowed_security_group_id[count.index]
 
-  from_port   = 3306
-  to_port     = 3306
+  from_port   = var.rds_port
+  to_port     = var.rds_port
   ip_protocol = "tcp"
-  description = "Allow traffic to RDS (MySQL)"
+  description = "Allow traffic to RDS"
 }
 
 # Auto Scaling Group
@@ -195,7 +201,7 @@ resource "aws_autoscaling_group" "main" {
 
   launch_template {
     id      = aws_launch_template.main.id
-    version = "$Latest"
+    version = aws_launch_template.main.latest_version
   }
 
   tag {
@@ -212,6 +218,18 @@ resource "aws_autoscaling_group" "main" {
       propagate_at_launch = true
     }
   }
+
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      min_healthy_percentage = 50
+      instance_warmup        = 300
+    }
+  }
+
+  lifecycle {
+    ignore_changes = [desired_capacity]
+  }
 }
 
 # Target Group
@@ -227,26 +245,23 @@ resource "aws_lb_target_group" "main" {
     unhealthy_threshold = 2
     timeout             = 5
     interval            = 30
-    path                = "/"
+    path                = var.health_check_path
     matcher             = "200"
   }
 
   tags = var.tags
 }
 
-# Auto Scaling Policies
-resource "aws_autoscaling_policy" "scale_up" {
-  name                   = "${var.project_name}-${var.environment}-scale-up"
-  scaling_adjustment     = 1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 300
+# Auto Scaling Policy
+resource "aws_autoscaling_policy" "target_tracking_cpu" {
+  name                   = "${var.project_name}-${var.environment}-target-tracking-cpu"
   autoscaling_group_name = aws_autoscaling_group.main.name
-}
+  policy_type            = "TargetTrackingScaling"
 
-resource "aws_autoscaling_policy" "scale_down" {
-  name                   = "${var.project_name}-${var.environment}-scale-down"
-  scaling_adjustment     = -1
-  adjustment_type        = "ChangeInCapacity"
-  cooldown               = 300
-  autoscaling_group_name = aws_autoscaling_group.main.name
+  target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ASGAverageCPUUtilization"
+    }
+    target_value = 60.0
+  }
 }

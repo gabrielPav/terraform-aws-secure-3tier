@@ -1,14 +1,3 @@
-# ============================================================================
-# Load Balancer Module - Outputs
-# ============================================================================
-# This file defines all output values from the ALB module.
-# These outputs can be used by other modules or the root module.
-# ============================================================================
-
-# ============================================================================
-# ALB Resource Outputs
-# ============================================================================
-
 output "alb_id" {
   description = "The ID of the Application Load Balancer"
   value       = aws_lb.main.id
@@ -17,6 +6,11 @@ output "alb_id" {
 output "alb_arn" {
   description = "The ARN of the Application Load Balancer"
   value       = aws_lb.main.arn
+}
+
+output "alb_arn_suffix" {
+  description = "The ARN suffix of the ALB for use in CloudWatch metric dimensions"
+  value       = aws_lb.main.arn_suffix
 }
 
 output "alb_dns_name" {
@@ -36,10 +30,6 @@ output "alb_zone_id" {
   value       = aws_lb.main.zone_id
 }
 
-# ============================================================================
-# Security Group Outputs
-# ============================================================================
-
 output "alb_security_group_id" {
   description = <<-EOT
     The ID of the ALB security group.
@@ -47,10 +37,6 @@ output "alb_security_group_id" {
   EOT
   value       = aws_security_group.alb.id
 }
-
-# ============================================================================
-# HTTPS/SSL Outputs
-# ============================================================================
 
 output "https_endpoint_url" {
   description = <<-EOT
@@ -79,10 +65,6 @@ output "https_enabled" {
   value       = local.enable_https
 }
 
-# ============================================================================
-# ACM Certificate Outputs
-# ============================================================================
-
 output "acm_certificate_arn" {
   description = <<-EOT
     The ARN of the ACM certificate used for HTTPS.
@@ -110,16 +92,12 @@ output "acm_certificate_status" {
   value       = local.create_acm_certificate ? aws_acm_certificate.main[0].status : ""
 }
 
-# ============================================================================
-# Route53 Outputs
-# ============================================================================
-
 output "route53_zone_id" {
   description = <<-EOT
     The Route53 hosted zone ID used for DNS validation and ALB alias record.
     Only populated when domain_name is provided.
   EOT
-  value       = local.create_acm_certificate ? local.route53_zone_id : ""
+  value       = var.domain_name != "" ? local.route53_zone_id : ""
 }
 
 output "route53_zone_name_servers" {
@@ -150,12 +128,8 @@ output "route53_alb_record_fqdn" {
     The FQDN of the Route53 A record pointing to the ALB.
     Only populated when domain_name is provided.
   EOT
-  value       = var.domain_name != "" ? aws_route53_record.alb_alias[0].fqdn : ""
+  value       = var.domain_name != "" && var.create_dns_record ? aws_route53_record.alb_alias[0].fqdn : ""
 }
-
-# ============================================================================
-# Listener Outputs
-# ============================================================================
 
 output "http_listener_arn" {
   description = "The ARN of the HTTP listener (port 80)"
@@ -169,10 +143,6 @@ output "https_listener_arn" {
   EOT
   value       = local.enable_https ? aws_lb_listener.https[0].arn : ""
 }
-
-# ============================================================================
-# Access Logs Outputs
-# ============================================================================
 
 output "alb_logs_bucket_id" {
   description = <<-EOT

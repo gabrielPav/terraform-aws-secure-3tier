@@ -13,11 +13,6 @@ variable "vpc_id" {
   type        = string
 }
 
-variable "public_subnet_ids" {
-  description = "Public subnet IDs"
-  type        = list(string)
-}
-
 variable "private_subnet_ids" {
   description = "Private subnet IDs"
   type        = list(string)
@@ -81,12 +76,6 @@ variable "ebs_volume_type" {
   default     = "gp3"
 }
 
-variable "enable_ebs_encryption" {
-  description = "Enable EBS encryption"
-  type        = bool
-  default     = true
-}
-
 variable "kms_key_arn" {
   description = "KMS key ARN for EBS encryption"
   type        = string
@@ -141,6 +130,12 @@ variable "enable_eic_ssh_access" {
   description = "Enable SSH access from EC2 Instance Connect Endpoint"
   type        = bool
   default     = false
+}
+
+variable "health_check_path" {
+  description = "Health check path for the target group"
+  type        = string
+  default     = "/"
 }
 
 variable "tags" {

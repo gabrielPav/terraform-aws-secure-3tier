@@ -2,7 +2,6 @@
 
 ![AWS Badge](https://img.shields.io/badge/AWS-Deployed-4EAA25.svg?style=flat&logo=amazon-aws&logoColor=white)
 ![Terraform Badge](https://img.shields.io/badge/Terraform-IaC-5c4ee5.svg?style=flat&logo=terraform&logoColor=white)
-![Bash Badge](https://img.shields.io/badge/Bash-Script-232F3E.svg?style=flat&logo=gnu-bash&logoColor=white)
 
 A secure, production-ready 3-tier AWS infrastructure deployed with Terraform. While many projects implement a standard AWS 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete web application stack including networking, compute, database, load balancing, CDN, and monitoring - all built using best-practice guardrails, least-privilege access, encryption, and auditable configurations to support real-world deployments.
 
@@ -26,16 +25,30 @@ A secure, production-ready 3-tier AWS infrastructure deployed with Terraform. Wh
 - An AWS account with sufficient permissions.
 - A registered domain name.
 
-## Using Custom Domains
+## Custom Domain (Required)
 
-This project is configured to provision an SSL/TLS certificate using AWS Certificate Manager (ACM) with DNS validation (required for HTTPS). You have two options for Route53 DNS configuration:
+**A custom domain name is required** to deploy this infrastructure. This is because:
+
+- **CloudFront** is enabled by default (CDN, DDoS protection, edge caching)
+- **TLS 1.2 enforcement** requires an ACM certificate with a custom domain
+- Production workloads should use a proper domain, not AWS-generated URLs
+
+You must set `domain_name` in your `terraform.tfvars`:
+
+```hcl
+domain_name = "app.example.com"  # Required
+```
+
+### Route53 DNS Options
+
+You have two options for Route53 DNS configuration:
 
 | Option | Use Case | Certificate Validation Time |
 |--------|----------|----------------------------|
 | **A: Use Existing Zone** (default) | You already have a Route53 hosted zone | 2-5 minutes |
 | **B: Create New Zone** | Starting fresh, no existing zone | Up to 48 hours (DNS propagation) |
 
-Option A: use existing Route53 Zone - is recommended for fast deployment. 
+Option A: Use existing Route53 Zone - is recommended for fast deployment.
 Option B: If you set `create_route53_zone = true`, you must configure your domain registrar to use the Route53 nameservers after the first apply. 
 
 ## Using an Existing SSL/TLS Certificate
@@ -199,10 +212,12 @@ terraform destroy
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| `domain_name` | FQDN for HTTPS endpoint (e.g., `app.example.com`) | `string` | `""` | No |
+| `domain_name` | FQDN for the application (e.g., `app.example.com`) | `string` | - | **Yes** |
 | `create_route53_zone` | Create new Route53 zone (`true`) or use existing (`false`) | `bool` | `false` | No |
-| `alb_certificate_arn` | ARN of existing ACM certificate | `string` | `""` | No |
+| `alb_certificate_arn` | ARN of existing ACM certificate for ALB | `string` | `""` | No |
 | `redirect_http_to_https` | Redirect HTTP to HTTPS when enabled | `bool` | `true` | No |
+| `enable_cloudfront` | Enable CloudFront CDN with TLS 1.2 enforcement | `bool` | `true` | No |
+| `enable_waf` | Enable WAF for CloudFront (Log4j, XSS, SQLi protection) | `bool` | `false` | No |
 | `enable_eic_endpoint` | Enable EC2 Instance Connect Endpoint for SSH access | `bool` | `true` | No |
 | `project_name` | Name of the project | `string` | `"web-app"` | No |
 | `environment` | Environment (dev/staging/production) | `string` | `"production"` | No |
@@ -214,13 +229,14 @@ See `variables.tf` for the complete list of available variables.
 
 | Name | Description |
 |------|-------------|
+| `https_endpoint_url` | The HTTPS URL for your application (custom domain) |
+| `cloudfront_custom_domain_url` | CloudFront URL with your custom domain |
+| `cloudfront_domain_name` | CloudFront distribution domain (*.cloudfront.net) |
 | `alb_dns_name` | The DNS name of the Application Load Balancer |
-| `https_endpoint_url` | The HTTPS URL for your application |
-| `http_endpoint_url` | The HTTP URL (redirects to HTTPS if enabled) |
 | `route53_zone_created` | Whether a new Route53 zone was created |
 | `route53_name_servers` | Nameservers to configure (only if zone was created) |
-| `acm_certificate_arn` | ARN of the SSL certificate |
-| `cloudfront_domain_name` | CloudFront distribution domain |
+| `acm_certificate_arn` | ARN of the ALB SSL certificate |
+| `cloudfront_certificate_arn` | ARN of the CloudFront SSL certificate |
 | `eic_endpoint_id` | EC2 Instance Connect Endpoint ID for SSH access |
 
 ## Implemented Security Best Practices
@@ -242,8 +258,8 @@ See `variables.tf` for the complete list of available variables.
 - VPC Flow Logs enabled for network traffic auditing
 - Security groups follow least-privilege principle
 - Default VPC security group restricts all traffic
-- VPC Gateway Endpoints for S3 and DynamoDB (traffic stays in AWS)
-- VPC Interface Endpoints for private AWS service access
+- VPC Gateway Endpoints for S3 (traffic stays in AWS)
+- VPC Interface Endpoints for private service access (Secrets Manager and CloudWatch Logs)
 - NAT Gateway for secure outbound-only internet access
 
 ### Identity & Access Management
@@ -286,6 +302,7 @@ See `variables.tf` for the complete list of available variables.
 - S3 access logging for all buckets
 - ALB access logs enabled
 - VPC Flow Logs to CloudWatch
+- CloudWatch alarm for IAM policy changes (SNS notifications)
 
 ### Database Security
 
@@ -302,6 +319,7 @@ See `variables.tf` for the complete list of available variables.
 - CloudFront geo-restriction for regional access control
 - CloudFront security headers policy (HSTS, X-Frame-Options, Content-Security-Policy)
 - Cross-zone load balancing enabled
+- AWS WAF with OWASP managed rules 
 
 ### Monitoring & Alerting
 
