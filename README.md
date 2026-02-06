@@ -3,20 +3,22 @@
 ![AWS Badge](https://img.shields.io/badge/AWS-Deployed-4EAA25.svg?style=flat&logo=amazon-aws&logoColor=white)
 ![Terraform Badge](https://img.shields.io/badge/Terraform-IaC-5c4ee5.svg?style=flat&logo=terraform&logoColor=white)
 
-A secure, production-ready 3-tier AWS infrastructure deployed with Terraform. While many projects implement a standard AWS 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete web application stack including networking, compute, database, load balancing, CDN, and monitoring - all built using best-practice guardrails, least-privilege access, encryption, and auditable configurations to support real-world deployments.
+
+This project automates the deployment of a highly available, secure, and production-ready 3-tier architecture on AWS using Terraform.
+
+While many projects implement a standard AWS 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete web application stack including networking, compute, database, load balancing, CDN, WAF, and monitoring - all built using best-practice guardrails, least-privilege access, encryption, and auditable configurations to support real-world deployments.
 
 ## Features
 
-- **Networking**: VPC with public/private subnets across multiple AZs, NAT gateways, VPC endpoints.
+- **Networking**: VPC with public/private subnets across multiple AZs, NAT gateways, VPC and EIC endpoints.
 - **Compute**: Auto Scaling Group with Launch Templates, EC2 instances with IMDSv2, encrypted EBS volumes.
 - **Storage**: S3 buckets for assets and logs with versioning, encryption, and lifecycle policies.
 - **Database**: RDS with Multi-AZ support, encryption at rest, automated backups.
 - **Load Balancing**: Application Load Balancer with HTTP/HTTPS support.
 - **SSL/TLS**: Automatic ACM certificate provisioning with DNS validation.
 - **CDN**: CloudFront distribution with ALB origin (default) and S3 origin for static assets.
-- **Security**: IAM roles, KMS encryption (customer-managed keys), CloudTrail logging, security groups.
-- **Instance Access**: EC2 Instance Connect Endpoint for secure SSH access without public IPs.
-- **Monitoring**: CloudWatch alarms and dashboards.
+- **Security**: IAM roles, customer-managed KMS keys, WAF (Log4j, XSS, and SQLi protection), hardened security groups.
+- **Monitoring and Logging**: CloudTrail logging, CloudWatch alarms and dashboards.
 
 ## Prerequisites
 
@@ -30,7 +32,7 @@ A secure, production-ready 3-tier AWS infrastructure deployed with Terraform. Wh
 **A custom domain name is required** to deploy this infrastructure. This is because:
 
 - **CloudFront** is enabled by default (CDN, DDoS protection, edge caching)
-- **TLS 1.2 enforcement** requires an ACM certificate with a custom domain
+- **End-to-end encryption in transit** requires an ACM certificate (free) with a custom domain
 - Production workloads should use a proper domain, not AWS-generated URLs
 
 You must set `domain_name` in your `terraform.tfvars`:
@@ -50,16 +52,6 @@ You have two options for Route53 DNS configuration:
 
 Option A: Use existing Route53 Zone - is recommended for fast deployment.
 Option B: If you set `create_route53_zone = true`, you must configure your domain registrar to use the Route53 nameservers after the first apply. 
-
-## Using an Existing SSL/TLS Certificate
-
-If you already have an ACM certificate, you can use it instead of creating a new one:
-
-```hcl
-# In terraform.tfvars:
-
-alb_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/abcd-1234-abcd-1234"
-```
 
 ---
 
@@ -314,12 +306,11 @@ See `variables.tf` for the complete list of available variables.
 
 ### Application Protection
 
-- AWS WAF with OWASP managed rules (optional)
+- AWS WAF with OWASP managed rules 
 - CloudFront Origin Access Control for S3
 - CloudFront geo-restriction for regional access control
 - CloudFront security headers policy (HSTS, X-Frame-Options, Content-Security-Policy)
 - Cross-zone load balancing enabled
-- AWS WAF with OWASP managed rules 
 
 ### Monitoring & Alerting
 
