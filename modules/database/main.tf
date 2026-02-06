@@ -42,15 +42,13 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_ec2" {
   referenced_security_group_id = var.allowed_security_group_id
 }
 
-# Note: No egress rule defined - RDS only receives connections, it doesn't
-# initiate outbound connections. AWS Security Groups are stateful, so response
-# traffic to EC2 queries is automatically allowed on the established connection.
+# No egress needed — SGs are stateful, response traffic flows back automatically
 
 # IAM Role for RDS Enhanced Monitoring
 resource "aws_iam_role" "rds_enhanced_monitoring" {
   count = var.enhanced_monitoring_interval > 0 ? 1 : 0
 
-  name = "${var.project_name}-${var.environment}-rds-monitoring-role"
+  name_prefix = "${var.project_name}-${var.environment}-rds-mon-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -89,7 +87,7 @@ resource "aws_db_parameter_group" "main" {
     value = "utf8mb4_general_ci"
   }
 
-  # Enforce SSL/TLS for all connections (encryption in transit)
+  # Force TLS for all DB connections
   parameter {
     name  = "require_secure_transport"
     value = "1"
@@ -114,7 +112,6 @@ resource "aws_db_instance" "main" {
   db_name  = var.db_name
   username = var.db_username
 
-  # Enabling AWS Secrets Manager integration
   manage_master_user_password   = true
   master_user_secret_kms_key_id = var.kms_key_id
 

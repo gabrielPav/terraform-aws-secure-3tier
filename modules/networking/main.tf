@@ -31,8 +31,7 @@ resource "aws_vpc" "main" {
   })
 }
 
-# Lock down the default security group (AWS creates one automatically)
-# By not specifying any ingress/egress rules, all traffic is denied
+# Lock down the default SG — no rules means no traffic
 resource "aws_default_security_group" "default" {
   vpc_id = aws_vpc.main.id
 
@@ -161,7 +160,7 @@ resource "aws_cloudwatch_log_group" "flow_logs" {
 resource "aws_iam_role" "flow_log" {
   count = var.enable_flow_logs ? 1 : 0
 
-  name = "${var.vpc_name}-flow-log-role"
+  name_prefix = "${var.vpc_name}-flow-log-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -238,8 +237,7 @@ resource "aws_vpc_endpoint_policy" "s3" {
 
   vpc_endpoint_id = aws_vpc_endpoint.s3[0].id
 
-  # Restrict S3 access to project-specific buckets only
-  # This prevents compromised EC2 instances from accessing other buckets in the account
+  # Scope S3 access to project buckets only — don't let a compromised instance reach others
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

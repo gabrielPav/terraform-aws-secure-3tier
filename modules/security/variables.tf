@@ -59,6 +59,12 @@ variable "alarm_notification_email" {
   default     = ""
 }
 
+variable "log_retention_days" {
+  description = "CloudWatch log retention in days"
+  type        = number
+  default     = 365
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)

@@ -162,7 +162,7 @@ resource "aws_kms_alias" "main" {
 # ============================================================================
 
 resource "aws_iam_role" "ec2" {
-  name = "${var.project_name}-${var.environment}-ec2-role"
+  name_prefix = "${var.project_name}-${var.environment}-ec2-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -197,7 +197,7 @@ resource "aws_iam_role_policy" "ec2_s3" {
         "arn:aws:s3:::${var.project_name}-${var.environment}-*",
         "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
       ]
-      # Restrict S3 access to VPC only - prevents credential abuse from outside VPC
+      # S3 access only from within the VPC
       Condition = {
         StringEquals = {
           "aws:SourceVpc" = var.vpc_id
@@ -222,7 +222,7 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
           "secretsmanager:DescribeSecret"
         ]
         Resource = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:rds!*"
-        # Restrict Secrets Manager access to VPC only - prevents credential abuse from outside VPC
+        # Secrets Manager access only from within the VPC
         Condition = {
           StringEquals = {
             "aws:SourceVpc" = var.vpc_id
@@ -248,7 +248,7 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
 }
 
 resource "aws_iam_instance_profile" "ec2" {
-  name = "${var.project_name}-${var.environment}-ec2-profile"
+  name_prefix = "${var.project_name}-${var.environment}-ec2-profile-"
   role = aws_iam_role.ec2.name
 
   tags = var.tags
@@ -423,7 +423,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail" {
 resource "aws_cloudwatch_log_group" "cloudtrail" {
   count             = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
   name              = "/aws/cloudtrail/${var.cloudtrail_name}"
-  retention_in_days = 365
+  retention_in_days = var.log_retention_days
   kms_key_id        = aws_kms_key.main.arn
 
   tags = var.tags
@@ -431,7 +431,7 @@ resource "aws_cloudwatch_log_group" "cloudtrail" {
 
 resource "aws_iam_role" "cloudtrail_cloudwatch" {
   count = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
-  name  = "${var.cloudtrail_name}-cloudwatch-role"
+  name_prefix = "${var.cloudtrail_name}-cw-role-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

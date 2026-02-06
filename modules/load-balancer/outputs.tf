@@ -132,8 +132,8 @@ output "route53_alb_record_fqdn" {
 }
 
 output "http_listener_arn" {
-  description = "The ARN of the HTTP listener (port 80)"
-  value       = aws_lb_listener.http.arn
+  description = "The ARN of the HTTP listener (port 80). Returns empty string if restricted to CloudFront."
+  value       = var.restrict_ingress_to_cloudfront ? "" : aws_lb_listener.http[0].arn
 }
 
 output "https_listener_arn" {

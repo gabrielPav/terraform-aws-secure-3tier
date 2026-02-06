@@ -35,9 +35,7 @@ output "ec2_security_group_id" {
 
 output "alb_dns_name" {
   description = <<-EOT
-    The DNS name of the Application Load Balancer.
-    Use this to access the ALB directly or configure external DNS records.
-    Example: my-alb-123456789.us-east-1.elb.amazonaws.com
+    ALB DNS name (e.g., my-alb-123456789.us-east-1.elb.amazonaws.com)
   EOT
   value       = module.load_balancer.alb_dns_name
 }
@@ -53,8 +51,6 @@ output "https_endpoint_url" {
     - If domain_name is configured: https://<domain_name>
     - If only certificate_arn is provided: https://<alb_dns_name>
     - If HTTPS is not enabled: Empty string
-
-    Use this URL to access the application securely over HTTPS.
   EOT
   value       = module.load_balancer.https_endpoint_url
 }
@@ -112,9 +108,7 @@ output "cloudfront_domain_name" {
 
 output "cloudfront_custom_domain_url" {
   description = <<-EOT
-    The custom domain URL for accessing your application via CloudFront.
-    This is the primary URL users should use to access your application.
-    Traffic flows: User -> CloudFront (edge) -> ALB -> EC2
+    Custom domain URL via CloudFront. Traffic flow: User → CloudFront → ALB → EC2
   EOT
   value       = module.cdn.cloudfront_custom_domain_url
 }

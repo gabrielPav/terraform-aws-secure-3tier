@@ -247,8 +247,7 @@ variable "create_route53_zone" {
             registrar's nameservers after apply. DNS propagation can take up to
             48 hours before the certificate validates.
 
-    Recommendation: Use false (existing zone) for faster setup if you already
-    have a Route53 hosted zone for your domain.
+    Prefer false (existing zone) if you already have one — much faster setup.
   EOT
   type        = bool
   default     = false

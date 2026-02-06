@@ -129,7 +129,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_high_5xx" {
   period              = 300
   statistic           = "Sum"
   threshold           = 10
-  alarm_description   = "This metric monitors ALB 5xx errors"
+  alarm_description   = "ALB 5xx error rate exceeded threshold"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
@@ -151,7 +151,7 @@ resource "aws_cloudwatch_metric_alarm" "asg_cpu_high" {
   period              = 300
   statistic           = "Average"
   threshold           = 80
-  alarm_description   = "This metric monitors EC2 CPU utilization"
+  alarm_description   = "EC2 CPU above 80%"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
@@ -173,7 +173,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   period              = 300
   statistic           = "Average"
   threshold           = 80
-  alarm_description   = "This metric monitors RDS CPU utilization"
+  alarm_description   = "RDS CPU above 80%"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 

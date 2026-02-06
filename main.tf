@@ -1,7 +1,7 @@
 # ============================================================================
 # Production AWS Infrastructure - Main Configuration
 # ============================================================================
-# This is the root module that orchestrates all infrastructure components
+# Root module — wires all child modules together
 # ============================================================================
 
 provider "aws" {
@@ -76,8 +76,9 @@ module "security" {
   project_name             = var.project_name
   environment              = var.environment
   vpc_id                   = module.networking.vpc_id
-  s3_bucket_name           = "${var.project_name}-${var.environment}-cloudtrail-logs"
+  s3_bucket_name           = "${var.project_name}-${var.environment}-cloudtrail-logs-${data.aws_caller_identity.current.account_id}"
   cloudtrail_name          = "${var.project_name}-${var.environment}-cloudtrail"
+  log_retention_days       = var.cloudwatch_log_retention_days
   enable_cloudtrail        = true
   enable_cloudwatch        = true
   s3_access_logs_bucket_id = module.storage.s3_access_logs_bucket_id
@@ -97,7 +98,7 @@ module "storage" {
   kms_key_id   = module.security.kms_key_id
 
   # S3 Configuration
-  s3_bucket_name       = "${var.project_name}-${var.environment}-assets"
+  s3_bucket_name       = "${var.project_name}-${var.environment}-assets-${data.aws_caller_identity.current.account_id}"
   enable_s3_versioning = true
 
   # Object Lock (Governance Mode)
@@ -221,7 +222,6 @@ module "load_balancer" {
   redirect_http_to_https = var.redirect_http_to_https
   create_route53_zone    = var.create_route53_zone
 
-  # HTTPS is enabled if either domain_name or certificate_arn is provided
   enable_https = var.domain_name != "" || var.alb_certificate_arn != ""
 
   # When CloudFront is enabled, restrict ALB to CloudFront IPs only
@@ -240,7 +240,6 @@ module "load_balancer" {
 module "cdn" {
   source = "./modules/cdn"
 
-  # Pass both default and us-east-1 providers for ACM certificate creation
   providers = {
     aws           = aws
     aws.us_east_1 = aws.us_east_1
@@ -261,9 +260,7 @@ module "cdn" {
   enable_compression = true
   enable_logging     = true
 
-  # ACM Certificate Configuration
-  # CloudFront requires certificates in us-east-1; if deploying to us-east-1,
-  # the ALB certificate is reused, otherwise a new certificate is created
+  # ACM — CloudFront needs a cert in us-east-1; reuses ALB cert if we're already there
   domain_name         = var.domain_name
   aws_region          = var.aws_region
   route53_zone_id     = module.load_balancer.route53_zone_id

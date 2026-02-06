@@ -69,10 +69,10 @@ resource "aws_s3_bucket_object_lock_configuration" "main" {
 # ============================================================================
 # Centralized S3 Access Logs Bucket
 # ============================================================================
-# This bucket stores S3 server access logs for all S3 buckets in the project
+# Collects access logs from all project S3 buckets
 
 resource "aws_s3_bucket" "s3_access_logs" {
-  bucket = "${var.project_name}-${var.environment}-s3-access-logs"
+  bucket = "${var.project_name}-${var.environment}-s3-access-logs-${data.aws_caller_identity.current.account_id}"
 
   tags = merge(var.tags, {
     Name    = "${var.project_name}-${var.environment}-s3-access-logs"
@@ -80,7 +80,6 @@ resource "aws_s3_bucket" "s3_access_logs" {
   })
 }
 
-# Disable ACLs and enforce bucket owner ownership for all objects
 resource "aws_s3_bucket_ownership_controls" "s3_access_logs" {
   bucket = aws_s3_bucket.s3_access_logs.id
 
@@ -230,7 +229,7 @@ resource "aws_s3_bucket_logging" "main" {
   target_prefix = "main-bucket/"
 }
 
-# S3 access logs bucket - self logging configuration
+# Main bucket encryption
 resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
   bucket = aws_s3_bucket.main.id
 

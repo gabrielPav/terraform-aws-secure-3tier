@@ -268,7 +268,7 @@ resource "aws_route53_zone" "created" {
   })
 }
 
-# Existing Route53 zone lookup (default, faster since DNS is already configured)
+# Look up existing Route53 zone (default path — no NS delegation needed)
 data "aws_route53_zone" "existing" {
   count = var.domain_name != "" && !var.create_route53_zone ? 1 : 0
 
@@ -374,7 +374,11 @@ resource "aws_lb" "main" {
 }
 
 # HTTP listener - redirects to HTTPS when enabled, otherwise forwards to targets
+# Skipped when CloudFront is enabled since CloudFront connects on HTTPS only
+# and no security group ingress exists for port 80 in that configuration.
 resource "aws_lb_listener" "http" {
+  count = var.restrict_ingress_to_cloudfront ? 0 : 1
+
   load_balancer_arn = aws_lb.main.arn
   port              = "80"
   protocol          = "HTTP"
