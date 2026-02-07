@@ -11,15 +11,11 @@ terraform {
 data "aws_caller_identity" "current" {}
 
 locals {
-  # Only create a new cert if domain_name is provided without an existing certificate_arn
-  create_acm_certificate = var.domain_name != "" && var.certificate_arn == ""
+  create_acm_certificate = var.domain_name != ""
 
-  enable_https = var.enable_https || var.domain_name != "" || var.certificate_arn != ""
+  enable_https = var.enable_https || var.domain_name != ""
 
-  # Prefer existing certificate_arn, fall back to newly created one
-  certificate_arn = var.certificate_arn != "" ? var.certificate_arn : (
-    local.create_acm_certificate ? aws_acm_certificate.main[0].arn : ""
-  )
+  certificate_arn = local.create_acm_certificate ? aws_acm_certificate.main[0].arn : ""
 
   # Extract root domain from FQDN for Route53 lookup (e.g. "app.example.com" -> "example.com")
   domain_parts = var.domain_name != "" ? split(".", var.domain_name) : []
@@ -38,7 +34,7 @@ locals {
 
 resource "aws_s3_bucket" "alb_logs" {
   count  = var.enable_access_logs ? 1 : 0
-  bucket = "${var.project_name}-${var.environment}-alb-logs"
+  bucket = "${var.project_name}-${var.environment}-alb-logs-${data.aws_caller_identity.current.account_id}"
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-alb-logs"
@@ -226,6 +222,23 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https_public" {
 
   from_port   = 443
   to_port     = 443
+  ip_protocol = "tcp"
+  cidr_ipv4   = "0.0.0.0/0"
+}
+
+# Allows HTTP traffic to reach the ALB so it can redirect users to HTTPS.
+# No unencrypted traffic is ever forwarded to backend targets.
+# This rule is only created when CloudFront is disabled. When CloudFront
+# is enabled (the default), it handles the redirect at the edge and this
+# rule will not be created.
+resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
+  count = var.restrict_ingress_to_cloudfront ? 0 : 1
+
+  security_group_id = aws_security_group.alb.id
+  description       = "HTTP to HTTPS redirect only — traffic is never forwarded unencrypted to targets"
+
+  from_port   = 80
+  to_port     = 80
   ip_protocol = "tcp"
   cidr_ipv4   = "0.0.0.0/0"
 }

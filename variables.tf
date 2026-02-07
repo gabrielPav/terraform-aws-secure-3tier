@@ -185,16 +185,6 @@ variable "rds_backup_retention_period" {
 # Load Balancer Variables
 # ============================================================================
 
-variable "alb_certificate_arn" {
-  description = <<-EOT
-    ARN of an existing SSL certificate for ALB (optional).
-    If provided, this certificate will be used instead of creating a new one.
-    Takes precedence over domain_name for certificate selection.
-  EOT
-  type        = string
-  default     = ""
-}
-
 variable "domain_name" {
   description = <<-EOT
     Fully Qualified Domain Name (FQDN) for the application (REQUIRED).
@@ -258,7 +248,18 @@ variable "create_route53_zone" {
 # ============================================================================
 
 variable "enable_cloudfront" {
-  description = "Enable CloudFront CDN. Requires domain_name to be set for TLS 1.2 enforcement."
+  description = <<-EOT
+    Enable CloudFront CDN distribution in front of the ALB.
+
+    Strongly recommended to keep enabled (default: true). CloudFront provides:
+    - HTTPS between users and edge locations (end-to-end encryption with ALB)
+    - HTTP to HTTPS redirect handled at the edge (ALB only receives HTTPS)
+    - ALB security group restricted to CloudFront IPs only (not open to the internet)
+    - WAF, DDoS protection, and edge caching
+
+    When disabled, the ALB is exposed directly to the internet and handles
+    the HTTP to HTTPS redirect itself, which requires port 80 open to the public.
+  EOT
   type        = bool
   default     = true
 }

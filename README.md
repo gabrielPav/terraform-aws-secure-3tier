@@ -14,8 +14,8 @@ While many projects implement a standard 3-tier architecture, this one is design
 - **Compute**: Auto-scaling groups with launch templates, EC2 instances with IMDSv2, and encrypted EBS volumes.
 - **Storage**: S3 buckets for assets and logs with versioning, encryption, and lifecycle policies.
 - **Database**: RDS with Multi-AZ support, encryption at rest, encryption in transit, and automated backups.
-- **Load Balancing**: Application Load Balancer (ALB) with HTTPS and HTTP/2 support.
-- **SSL/TLS**: Automatic ACM certificate provisioning with DNS-based validation.
+- **Load Balancing**: Application Load Balancer (ALB) with HTTPS enforced and HTTP/2 support.
+- **SSL/TLS**: ACM certificate always provisioned and validated via Route53 DNS — HTTPS is required.
 - **CDN**: CloudFront distribution with ALB origin (default) and S3 origin for static assets.
 - **Security**: IAM roles, customer-managed KMS keys, WAF (Log4j, XSS, and SQLi protection), data perimeters, and hardened security groups.
 - **Monitoring and Logging**: CloudTrail and CloudFront logging, enhanced monitoring, CloudWatch alarms and dashboards.
@@ -234,6 +234,7 @@ See `variables.tf` for the complete list of available variables.
 - S3 server-side encryption (SSE-KMS)
 - CloudTrail logs encrypted with KMS
 - CloudWatch Logs encrypted with KMS
+- KMS key policy grants CloudFront OAC decrypt access for S3-encrypted objects
 - Hardened KMS key policies
 
 ### Network Security:
@@ -272,7 +273,8 @@ See `variables.tf` for the complete list of available variables.
 - ACM certificates with DNS validation
 - CloudFront origin connections use HTTPS-only
 - RDS connections require SSL/TLS encryption
-- TLS policies restricted to modern ciphers only 
+- HTTP to HTTPS redirect handled at CloudFront edge; ALB port 80 closed when CloudFront is enabled
+- TLS policies restricted to modern ciphers only
 - ALB drops invalid header fields
 
 ### S3 Security
@@ -304,6 +306,7 @@ See `variables.tf` for the complete list of available variables.
 - Deletion protection enabled in production
 - Access restricted to dedicated security group only
 - Secrets rotation automated via Secrets Manager
+- Parameter group family auto-derived from engine and version (no manual override needed)
 - Database audit logging enabled
 
 ### Monitoring & Alerting

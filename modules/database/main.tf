@@ -11,6 +11,10 @@ terraform {
   }
 }
 
+locals {
+  db_parameter_group_family = "${var.db_engine}${var.db_engine_version}"
+}
+
 # DB Subnet Group
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-${var.environment}-db-subnet-group"
@@ -74,7 +78,7 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
 # DB Parameter Group
 resource "aws_db_parameter_group" "main" {
   name   = "${var.project_name}-${var.environment}-db-params"
-  family = var.db_parameter_group_family
+  family = local.db_parameter_group_family
 
   # Use utf8mb4_general_ci collation for compatibility with older PHP mysqli clients
   parameter {

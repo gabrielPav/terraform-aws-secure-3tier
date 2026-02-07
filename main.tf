@@ -206,23 +206,18 @@ module "load_balancer" {
   # ============================================================================
   # SSL/TLS Configuration
   # ============================================================================
-  # HTTPS can be enabled in two ways:
-  # 1. Provide domain_name - Creates ACM certificate with DNS validation
-  # 2. Provide alb_certificate_arn - Uses existing certificate
-  #
-  # If both are provided, alb_certificate_arn takes precedence.
-  # If neither is provided, only HTTP listener is created.
+  # domain_name is required — Terraform automatically creates and validates
+  # an ACM certificate via Route53 DNS. HTTPS is always enabled.
   #
   # Route53 Zone Options:
   # - create_route53_zone = false (default): Use existing zone, fast validation
   # - create_route53_zone = true: Create new zone, requires nameserver update
   # ============================================================================
   domain_name            = var.domain_name
-  certificate_arn        = var.alb_certificate_arn
   redirect_http_to_https = var.redirect_http_to_https
   create_route53_zone    = var.create_route53_zone
 
-  enable_https = var.domain_name != "" || var.alb_certificate_arn != ""
+  enable_https = true
 
   # When CloudFront is enabled, restrict ALB to CloudFront IPs only
   restrict_ingress_to_cloudfront = var.enable_cloudfront

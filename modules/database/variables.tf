@@ -66,11 +66,6 @@ variable "db_port" {
   default     = 3306
 }
 
-variable "db_parameter_group_family" {
-  description = "Parameter group family"
-  type        = string
-  default     = "mysql8.0"
-}
 
 variable "multi_az" {
   description = "Enable Multi-AZ"

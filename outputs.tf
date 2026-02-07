@@ -48,9 +48,7 @@ output "alb_arn" {
 output "https_endpoint_url" {
   description = <<-EOT
     The HTTPS endpoint URL for the application.
-    - If domain_name is configured: https://<domain_name>
-    - If only certificate_arn is provided: https://<alb_dns_name>
-    - If HTTPS is not enabled: Empty string
+    Format: https://<domain_name>
   EOT
   value       = module.load_balancer.https_endpoint_url
 }

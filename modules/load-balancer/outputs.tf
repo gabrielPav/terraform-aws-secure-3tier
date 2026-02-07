@@ -67,10 +67,8 @@ output "https_enabled" {
 
 output "acm_certificate_arn" {
   description = <<-EOT
-    The ARN of the ACM certificate used for HTTPS.
-    - If a new certificate was created: ARN of the new certificate
-    - If an existing certificate was provided: The provided certificate_arn
-    - If HTTPS is not enabled: Empty string
+    The ARN of the ACM certificate created for HTTPS.
+    Empty string if HTTPS is not enabled.
   EOT
   value       = local.enable_https ? local.certificate_arn : ""
 }

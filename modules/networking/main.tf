@@ -286,7 +286,7 @@ resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_https" {
 }
 
 resource "aws_vpc_endpoint" "interface" {
-  for_each = var.enable_interface_endpoints
+  for_each = { for k, v in var.enable_interface_endpoints : k => v if v }
 
   vpc_id              = aws_vpc.main.id
   service_name        = "com.amazonaws.${data.aws_region.current.name}.${each.key}"

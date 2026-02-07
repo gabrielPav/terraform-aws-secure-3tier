@@ -81,20 +81,10 @@ variable "enable_https" {
   default     = false
 }
 
-variable "certificate_arn" {
-  description = <<-EOT
-    Existing SSL certificate ARN to use for HTTPS listener.
-    If provided along with domain_name, this takes precedence over
-    creating a new ACM certificate.
-  EOT
-  type        = string
-  default     = ""
-}
-
 variable "domain_name" {
   description = <<-EOT
     Fully Qualified Domain Name (FQDN) for the HTTPS endpoint.
-    When provided (and certificate_arn is empty), Terraform will:
+    When provided, Terraform will:
     1. Request an ACM certificate for this domain
     2. Look up the Route53 hosted zone for DNS validation
     3. Create DNS records for certificate validation

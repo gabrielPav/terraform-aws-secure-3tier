@@ -142,6 +142,27 @@ resource "aws_kms_key" "main" {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
         }
+      },
+      {
+        # CloudFront OAC needs to decrypt S3 objects encrypted with this KMS key.
+        # This statement is not scoped to a specific distribution ARN because that
+        # would create a Terraform circular dependency between the KMS key and
+        # the CloudFront distribution. Access is still restricted because the S3
+        # bucket policy only allows our specific distribution (via AWS:SourceArn)
+        # — any other distribution is blocked before KMS decryption is reached.
+        #
+        # In short: the broad KMS permission here is acceptable because S3 is
+        # the gatekeeper — if S3 denies the request, KMS is never called.
+        Sid    = "Allow CloudFront to decrypt S3 objects"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey*"
+        ]
+        Resource = "*"
       }
     ]
   })
