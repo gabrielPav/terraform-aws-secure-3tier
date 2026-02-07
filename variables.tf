@@ -105,7 +105,7 @@ variable "ec2_instance_type" {
 variable "asg_min_size" {
   description = "Minimum number of instances in ASG"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "asg_max_size" {
@@ -117,7 +117,7 @@ variable "asg_max_size" {
 variable "asg_desired_capacity" {
   description = "Desired number of instances in ASG"
   type        = number
-  default     = 2
+  default     = 3
 }
 
 variable "ebs_volume_size" {

@@ -66,7 +66,7 @@ cd terraform-aws-secure-3tier
 
 ### Option A: Use Existing Route53 Zone (Recommended - Faster)
 
-Use this option if you already have a Route53 hosted zone configured for your domain (create_route53_zone = false).
+Use this option if you already have a Route53 hosted zone configured for your domain (recommended).
 
 #### Step 1: Configure Variables
 
@@ -109,7 +109,7 @@ Terraform will:
 
 ### Option B: Create New Route53 Zone (Slower)
 
-Use this option if you don't have an existing Route53 hosted zone (create_route53_zone = true).
+Use this option if you don't have an existing Route53 hosted zone.
 
 #### Step 1: Configure Variables
 
