@@ -42,6 +42,12 @@ variable "s3_object_lock_retention_days" {
   }
 }
 
+variable "skip_bucket_policy" {
+  description = "Skip creating the assets bucket policy. Set to true when an external module (e.g., CDN) manages the policy instead."
+  type        = bool
+  default     = false
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)

@@ -8,11 +8,6 @@ variable "environment" {
   type        = string
 }
 
-variable "vpc_id" {
-  description = "VPC ID for aws:SourceVpc IAM conditions"
-  type        = string
-}
-
 variable "s3_bucket_name" {
   description = "S3 bucket name for CloudTrail"
   type        = string

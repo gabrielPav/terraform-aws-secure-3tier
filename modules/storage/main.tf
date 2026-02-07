@@ -226,6 +226,31 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
   })
 }
 
+# Enforce HTTPS — skipped when CDN module owns the bucket policy
+resource "aws_s3_bucket_policy" "main" {
+  count  = var.skip_bucket_policy ? 0 : 1
+  bucket = aws_s3_bucket.main.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyInsecureTransport"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          aws_s3_bucket.main.arn,
+          "${aws_s3_bucket.main.arn}/*"
+        ]
+        Condition = {
+          Bool = { "aws:SecureTransport" = "false" }
+        }
+      }
+    ]
+  })
+}
+
 # Main bucket S3 server access logging configuration
 resource "aws_s3_bucket_logging" "main" {
   bucket = aws_s3_bucket.main.id

@@ -15,7 +15,7 @@ While many projects implement a standard 3-tier architecture, this one is design
 - **Storage**: S3 buckets for assets and logs with versioning, encryption, and lifecycle policies.
 - **Database**: RDS with Multi-AZ support, encryption at rest, encryption in transit, and automated backups.
 - **Load Balancing**: Application Load Balancer (ALB) with HTTPS enforced and HTTP/2 support.
-- **SSL/TLS**: ACM certificate always provisioned and validated via Route53 DNS — HTTPS is required.
+- **SSL/TLS**: ACM certificate always provisioned and validated via Route53 DNS (HTTPS is mandatory).
 - **CDN**: CloudFront distribution with ALB origin (default) and S3 origin for static assets.
 - **Security**: IAM roles, customer-managed KMS keys, WAF (Log4j, XSS, and SQLi protection), data perimeters, and hardened security groups.
 - **Monitoring and Logging**: CloudTrail and CloudFront logging, enhanced monitoring, CloudWatch alarms and dashboards.
@@ -66,20 +66,22 @@ cd terraform-aws-secure-3tier
 
 ### Option A: Use Existing Route53 Zone (Recommended - Faster)
 
-Use this option if you already have a Route53 hosted zone configured for your domain.
+Use this option if you already have a Route53 hosted zone configured for your domain (create_route53_zone = false).
 
 #### Step 1: Configure Variables
 
-```hcl
-# In terraform.tfvars:
+Create a `terraform.tfvars` file in the project root to define your variables:
 
-# Your application's domain name
+```hcl
+# terraform.tfvars
+
+# Your application's domain name (required)
 domain_name = "app.example.com"
 
 # Use existing Route53 zone (default)
 create_route53_zone = false
 
-# Optional: Customize other settings
+# Optional: Customize other project settings
 project_name = "web-app"
 environment  = "production"
 aws_region   = "us-east-1"
@@ -107,23 +109,25 @@ Terraform will:
 
 ### Option B: Create New Route53 Zone (Slower)
 
-Use this option if you don't have an existing Route53 hosted zone.
+Use this option if you don't have an existing Route53 hosted zone (create_route53_zone = true).
 
 #### Step 1: Configure Variables
 
-```hcl
-# In terraform.tfvars
+Create a `terraform.tfvars` file in the project root to define your variables:
 
-# Your application's domain name
+```hcl
+# terraform.tfvars
+
+# Your application's domain name (required)
 domain_name = "app.example.com"
 
 # Create a new Route53 hosted zone
 create_route53_zone = true
 
 # Optional: Customize other settings
-project_name = "web-app"
-environment  = "production"
-aws_region   = "us-east-1"
+project_name             = "web-app"
+environment              = "production"
+aws_region               = "us-east-1"
 ```
 
 #### Step 2: Initialize and Apply

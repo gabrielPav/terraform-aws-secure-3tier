@@ -108,7 +108,9 @@ resource "aws_security_group" "ec2" {
   description = "Security group for EC2 instances"
   vpc_id      = var.vpc_id
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-ec2-sg"
+  })
 }
 
 # Ingress: HTTP from ALB
@@ -239,7 +241,9 @@ resource "aws_lb_target_group" "main" {
     matcher             = "200"
   }
 
-  tags = var.tags
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-tg"
+  })
 }
 
 # Auto Scaling Policy

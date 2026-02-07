@@ -75,7 +75,6 @@ module "security" {
 
   project_name             = var.project_name
   environment              = var.environment
-  vpc_id                   = module.networking.vpc_id
   s3_bucket_name           = "${var.project_name}-${var.environment}-cloudtrail-logs-${data.aws_caller_identity.current.account_id}"
   cloudtrail_name          = "${var.project_name}-${var.environment}-cloudtrail"
   log_retention_days       = var.cloudwatch_log_retention_days
@@ -109,6 +108,9 @@ module "storage" {
   # Object Lock (Governance Mode)
   enable_s3_object_lock         = var.enable_s3_object_lock
   s3_object_lock_retention_days = var.s3_object_lock_retention_days
+
+  # CDN module manages the assets bucket policy when CloudFront is on
+  skip_bucket_policy = var.enable_cloudfront
 
   tags = var.common_tags
 }

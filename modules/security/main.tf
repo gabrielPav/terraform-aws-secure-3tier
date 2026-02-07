@@ -505,13 +505,18 @@ resource "aws_cloudtrail" "main" {
 
   sns_topic_name = var.enable_cloudtrail_sns_notifications ? aws_sns_topic.cloudtrail_notifications[0].arn : null
 
+  # Management events (IAM, EC2, RDS API calls) are always logged.
+  # S3 data events scoped to project buckets only to control costs.
   event_selector {
     read_write_type           = "All"
     include_management_events = true
 
     data_resource {
-      type   = "AWS::S3::Object"
-      values = ["arn:aws:s3"]
+      type = "AWS::S3::Object"
+      values = [
+        "${aws_s3_bucket.cloudtrail[0].arn}/",
+        "arn:aws:s3:::${var.project_name}-${var.environment}-assets-${data.aws_caller_identity.current.account_id}/"
+      ]
     }
   }
 
