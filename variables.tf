@@ -147,7 +147,7 @@ variable "rds_engine" {
 }
 
 variable "rds_engine_version" {
-  description = "RDS engine version"
+  description = "RDS engine version. Use major.minor only (e.g., '8.0')."
   type        = string
   default     = "8.0"
 }
@@ -301,4 +301,16 @@ variable "cloudwatch_log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
   default     = 30
+}
+
+variable "alarm_notification_email" {
+  description = "Email address to receive CloudWatch alarm and security alert notifications. Leave empty to disable SNS notifications."
+  type        = string
+  default     = ""
+}
+
+variable "enable_cloudtrail_sns_notifications" {
+  description = "Enable SNS notifications for CloudTrail events and IAM policy change alerts. Requires alarm_notification_email to be set."
+  type        = bool
+  default     = false
 }

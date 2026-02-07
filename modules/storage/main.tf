@@ -195,11 +195,16 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
         Principal = {
           Service = "delivery.logs.amazonaws.com"
         }
-        Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.s3_access_logs.arn}/*"
+        Action = [
+          "s3:PutObject",
+          "s3:GetBucketAcl"
+        ]
+        Resource = [
+          "${aws_s3_bucket.s3_access_logs.arn}/*",
+          aws_s3_bucket.s3_access_logs.arn
+        ]
         Condition = {
           StringEquals = {
-            "s3:x-amz-acl"     = "bucket-owner-full-control"
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
         }
@@ -253,18 +258,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
     transition {
       days          = 30
       storage_class = "STANDARD_IA"
-    }
-  }
-
-  rule {
-    id     = "transition-to-glacier"
-    status = "Enabled"
-
-    filter {}
-
-    transition {
-      days          = 90
-      storage_class = "GLACIER"
     }
   }
 

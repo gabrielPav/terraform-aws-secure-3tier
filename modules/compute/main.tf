@@ -112,6 +112,9 @@ resource "aws_security_group" "ec2" {
 }
 
 # Ingress: HTTP from ALB
+# ALB terminates TLS and forwards plain HTTP to targets over the VPC private
+# network. HTTPS between ALB and EC2 is not required unless strict compliance
+# mandates end-to-end encryption (e.g., PCI-DSS, HIPAA).
 resource "aws_vpc_security_group_ingress_rule" "ec2_http_from_alb" {
   count = length(var.alb_security_group_ids)
 
@@ -122,19 +125,6 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_http_from_alb" {
   to_port     = 80
   ip_protocol = "tcp"
   description = "HTTP from ALB"
-}
-
-# Ingress: HTTPS from ALB
-resource "aws_vpc_security_group_ingress_rule" "ec2_https_from_alb" {
-  count = length(var.alb_security_group_ids)
-
-  security_group_id            = aws_security_group.ec2.id
-  referenced_security_group_id = var.alb_security_group_ids[count.index]
-
-  from_port   = 443
-  to_port     = 443
-  ip_protocol = "tcp"
-  description = "HTTPS from ALB"
 }
 
 # Ingress: SSH from EC2 Instance Connect Endpoint

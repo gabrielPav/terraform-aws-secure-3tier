@@ -163,6 +163,23 @@ resource "aws_kms_key" "main" {
           "kms:GenerateDataKey*"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "Allow SNS to use the key"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:GenerateDataKey*",
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       }
     ]
   })
@@ -206,7 +223,7 @@ resource "aws_iam_role_policy" "ec2_s3" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid    = "AllowS3AccessFromVPCOnly"
+      Sid    = "AllowS3Access"
       Effect = "Allow"
       Action = [
         "s3:GetObject",
@@ -218,12 +235,6 @@ resource "aws_iam_role_policy" "ec2_s3" {
         "arn:aws:s3:::${var.project_name}-${var.environment}-*",
         "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
       ]
-      # S3 access only from within the VPC
-      Condition = {
-        StringEquals = {
-          "aws:SourceVpc" = var.vpc_id
-        }
-      }
     }]
   })
 }
@@ -236,22 +247,16 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "GetSecretValueFromVPCOnly"
+        Sid    = "GetSecretValue"
         Effect = "Allow"
         Action = [
           "secretsmanager:GetSecretValue",
           "secretsmanager:DescribeSecret"
         ]
         Resource = "arn:aws:secretsmanager:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:secret:rds!*"
-        # Secrets Manager access only from within the VPC
-        Condition = {
-          StringEquals = {
-            "aws:SourceVpc" = var.vpc_id
-          }
-        }
       },
       {
-        Sid    = "DecryptSecretFromVPCOnly"
+        Sid    = "DecryptSecret"
         Effect = "Allow"
         Action = [
           "kms:Decrypt"
@@ -260,7 +265,6 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
         Condition = {
           StringEquals = {
             "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
-            "aws:SourceVpc"  = var.vpc_id
           }
         }
       }

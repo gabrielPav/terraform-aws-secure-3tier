@@ -243,6 +243,9 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
   cidr_ipv4   = "0.0.0.0/0"
 }
 
+# Broad egress is the standard pattern for ALBs. The ALB is a managed service
+# that only forwards traffic to registered targets. It cannot be compromised
+# to initiate arbitrary outbound connections like an EC2 instance could.
 resource "aws_vpc_security_group_egress_rule" "alb_all_egress" {
   security_group_id = aws_security_group.alb.id
   description       = "Allow all outbound traffic"

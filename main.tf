@@ -83,7 +83,12 @@ module "security" {
   enable_cloudwatch        = true
   s3_access_logs_bucket_id = module.storage.s3_access_logs_bucket_id
   enable_s3_access_logging = true
-  tags                     = var.common_tags
+
+  # SNS notifications for CloudTrail events and IAM policy change alerts
+  enable_cloudtrail_sns_notifications = var.enable_cloudtrail_sns_notifications
+  alarm_notification_email            = var.alarm_notification_email
+
+  tags = var.common_tags
 }
 
 # ============================================================================
@@ -292,6 +297,9 @@ module "monitoring" {
   enable_rds_alarm   = true
   log_retention_days = var.cloudwatch_log_retention_days
   kms_key_arn        = module.security.kms_key_arn
+
+  # SNS notifications for CloudWatch alarms
+  alarm_notification_email = var.alarm_notification_email
 
   tags = var.common_tags
 }
