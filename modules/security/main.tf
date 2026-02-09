@@ -196,6 +196,16 @@ resource "aws_kms_alias" "main" {
 }
 
 # ============================================================================
+# Account-Level EBS Encryption
+# ============================================================================
+# The launch template already encrypts its own volumes, but this catches
+# any EBS volumes created outside of Terraform (e.g. console, CLI, other IaC).
+
+resource "aws_ebs_encryption_by_default" "this" {
+  enabled = true
+}
+
+# ============================================================================
 # IAM Role for EC2 Instances
 # ============================================================================
 
