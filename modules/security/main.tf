@@ -338,6 +338,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail" {
       sse_algorithm     = "aws:kms"
       kms_master_key_id = aws_kms_key.main.arn
     }
+    bucket_key_enabled = true
   }
 }
 
