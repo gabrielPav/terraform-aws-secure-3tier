@@ -302,7 +302,7 @@ See `variables.tf` for the complete list of available variables.
 - S3 access logging for buckets
 - ALB access logs enabled
 - VPC Flow Logs to CloudWatch
-- CloudTrail integrated with CloudWatch alerts for anomalous behavior and IAM policy changes
+- CloudTrail integrated with CloudWatch alerts for anomalous behavior and IAM/VPC/S3/KMS changes
 - Log integrity monitoring and access control enforced
 
 ### Database Security
