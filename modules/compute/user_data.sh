@@ -5,14 +5,35 @@ set -euo pipefail
 # Pin PHP to 8.3 (security support until Dec 2027) for deterministic builds
 # Skipping 'dnf update -y' to avoid non-deterministic full system updates;
 # security patches are applied via AMI updates and instance refresh
-dnf install -y httpd php8.3 php8.3-mysqlnd
+dnf install -y httpd php8.3 php8.3-mysqlnd php8.3-xml
+
+# Install AWS SDK for PHP so the app can call AWS APIs natively
+# instead of shelling out to the CLI via shell_exec
+curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+composer require aws/aws-sdk-php --working-dir=/opt/aws-sdk --no-interaction --no-dev
 
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
 
 cat > /var/www/html/index.php <<'PHPEOF'
 <?php
-$credentials = json_decode(shell_exec("aws secretsmanager get-secret-value --secret-id " . escapeshellarg(getenv('DB_SECRET_ARN')) . " --region " . escapeshellarg(getenv('AWS_REGION')) . " --query SecretString --output text 2>/dev/null"), true);
+require '/opt/aws-sdk/vendor/autoload.php';
+
+use Aws\SecretsManager\SecretsManagerClient;
+
+$credentials = null;
+try {
+    $client = new SecretsManagerClient([
+        'region'  => getenv('AWS_REGION'),
+        'version' => 'latest',
+    ]);
+    $result = $client->getSecretValue([
+        'SecretId' => getenv('DB_SECRET_ARN'),
+    ]);
+    $credentials = json_decode($result['SecretString'], true);
+} catch (Exception $e) {
+    $credentials = null;
+}
 
 $db_connected = false;
 $db_error = '';

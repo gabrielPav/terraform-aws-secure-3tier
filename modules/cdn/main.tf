@@ -182,7 +182,7 @@ resource "aws_cloudfront_cache_policy" "alb" {
 
   name        = "${var.project_name}-${var.environment}-alb-cache-policy"
   comment     = "Cache policy for ALB origin - forwards cookies and auth headers for dynamic content"
-  default_ttl = 3600
+  default_ttl = 0
   max_ttl     = 86400
   min_ttl     = 0
 

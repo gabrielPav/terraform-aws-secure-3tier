@@ -13,15 +13,6 @@ terraform {
 
 data "aws_region" "current" {}
 
-# CloudWatch Log Groups
-resource "aws_cloudwatch_log_group" "app" {
-  name              = "/aws/${var.project_name}/${var.environment}/application"
-  retention_in_days = var.log_retention_days
-  kms_key_id        = var.kms_key_arn
-
-  tags = var.tags
-}
-
 # CloudWatch Dashboard
 resource "aws_cloudwatch_dashboard" "main" {
   count = var.enable_dashboard ? 1 : 0
