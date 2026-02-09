@@ -284,7 +284,7 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
 
 resource "aws_iam_instance_profile" "ec2" {
   name_prefix = "${var.project_name}-${var.environment}-ec2-profile-"
-  role = aws_iam_role.ec2.name
+  role        = aws_iam_role.ec2.name
 
   tags = var.tags
 }
@@ -466,7 +466,7 @@ resource "aws_cloudwatch_log_group" "cloudtrail" {
 }
 
 resource "aws_iam_role" "cloudtrail_cloudwatch" {
-  count = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
+  count       = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
   name_prefix = "${var.cloudtrail_name}-cw-role-"
 
   assume_role_policy = jsonencode({
@@ -629,6 +629,299 @@ resource "aws_cloudwatch_metric_alarm" "iam_policy_changes" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "IAMPolicyChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for Unauthorized API Calls
+# ============================================================================
+# Detects API calls that were rejected due to insufficient permissions.
+# CIS AWS Foundations Benchmark 3.1
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "unauthorized_api_calls" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-unauthorized-api-calls"
+  pattern        = "{($.errorCode=\"*UnauthorizedAccess\")||($.errorCode=\"AccessDenied*\")}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "UnauthorizedAPICalls"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "unauthorized_api_calls" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-unauthorized-api-calls"
+  alarm_description   = "Alerts when unauthorized API calls are detected (AccessDenied or UnauthorizedAccess)"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "UnauthorizedAPICalls"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for CloudTrail Configuration Changes
+# ============================================================================
+# Detects changes to CloudTrail configuration such as stopping logging,
+# deleting trails, or updating trail settings.
+# CIS AWS Foundations Benchmark 3.5
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "cloudtrail_config_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-cloudtrail-config-changes"
+  pattern        = "{($.eventName=CreateTrail)||($.eventName=UpdateTrail)||($.eventName=DeleteTrail)||($.eventName=StartLogging)||($.eventName=StopLogging)}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "CloudTrailConfigChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "cloudtrail_config_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-cloudtrail-config-changes"
+  alarm_description   = "Alerts when CloudTrail configuration is created, updated, deleted, or logging is started/stopped"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "CloudTrailConfigChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for S3 Bucket Policy Changes
+# ============================================================================
+# Detects changes to S3 bucket policies, ACLs, CORS, lifecycle, and
+# replication configurations.
+# CIS AWS Foundations Benchmark 3.8
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "s3_bucket_policy_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-s3-bucket-policy-changes"
+  pattern        = "{($.eventSource=s3.amazonaws.com)&&(($.eventName=PutBucketAcl)||($.eventName=PutBucketPolicy)||($.eventName=PutBucketCors)||($.eventName=PutBucketLifecycle)||($.eventName=PutBucketReplication)||($.eventName=DeleteBucketPolicy)||($.eventName=DeleteBucketCors)||($.eventName=DeleteBucketLifecycle)||($.eventName=DeleteBucketReplication))}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "S3BucketPolicyChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "s3_bucket_policy_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-s3-bucket-policy-changes"
+  alarm_description   = "Alerts when S3 bucket policies, ACLs, CORS, lifecycle, or replication configurations are changed"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "S3BucketPolicyChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for AWS Config Changes
+# ============================================================================
+# Detects changes to AWS Config service including stopping/deleting the
+# configuration recorder or delivery channel.
+# CIS AWS Foundations Benchmark 3.9
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "aws_config_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-aws-config-changes"
+  pattern        = "{($.eventSource=config.amazonaws.com)&&(($.eventName=StopConfigurationRecorder)||($.eventName=DeleteDeliveryChannel)||($.eventName=PutDeliveryChannel)||($.eventName=PutConfigurationRecorder))}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "AWSConfigChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "aws_config_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-aws-config-changes"
+  alarm_description   = "Alerts when AWS Config configuration recorder or delivery channel is modified"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "AWSConfigChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for Security Group Changes
+# ============================================================================
+# Detects creation, deletion, and modification of security groups and
+# their ingress/egress rules.
+# CIS AWS Foundations Benchmark 3.10
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "security_group_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-security-group-changes"
+  pattern        = "{($.eventName=AuthorizeSecurityGroupIngress)||($.eventName=AuthorizeSecurityGroupEgress)||($.eventName=RevokeSecurityGroupIngress)||($.eventName=RevokeSecurityGroupEgress)||($.eventName=CreateSecurityGroup)||($.eventName=DeleteSecurityGroup)}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "SecurityGroupChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "security_group_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-security-group-changes"
+  alarm_description   = "Alerts when security groups or their ingress/egress rules are created, modified, or deleted"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "SecurityGroupChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for VPC Changes
+# ============================================================================
+# Detects changes to VPC resources including VPCs, subnets, route tables,
+# internet gateways, and peering connections.
+# CIS AWS Foundations Benchmark 3.14
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "vpc_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-vpc-changes"
+  pattern        = "{($.eventName=CreateVpc)||($.eventName=DeleteVpc)||($.eventName=ModifyVpcAttribute)||($.eventName=AcceptVpcPeeringConnection)||($.eventName=CreateVpcPeeringConnection)||($.eventName=DeleteVpcPeeringConnection)||($.eventName=RejectVpcPeeringConnection)||($.eventName=AttachClassicLinkVpc)||($.eventName=DetachClassicLinkVpc)||($.eventName=DisableVpcClassicLink)||($.eventName=EnableVpcClassicLink)}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "VPCChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "vpc_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-vpc-changes"
+  alarm_description   = "Alerts when VPCs, subnets, route tables, gateways, or peering connections are modified"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "VPCChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for KMS CMK Disable or Scheduled Deletion
+# ============================================================================
+# Detects when KMS customer-managed keys are disabled or scheduled for
+# deletion, which could lead to data loss.
+# CIS AWS Foundations Benchmark 3.7
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "kms_cmk_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-kms-cmk-changes"
+  pattern        = "{($.eventSource=kms.amazonaws.com)&&(($.eventName=DisableKey)||($.eventName=ScheduleKeyDeletion))}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "KMSCMKChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "kms_cmk_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-kms-cmk-changes"
+  alarm_description   = "Alerts when KMS customer-managed keys are disabled or scheduled for deletion"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "KMSCMKChanges"
   namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
   period              = 300
   statistic           = "Sum"

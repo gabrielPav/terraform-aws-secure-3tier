@@ -310,7 +310,7 @@ variable "alarm_notification_email" {
 }
 
 variable "enable_cloudtrail_sns_notifications" {
-  description = "Enable SNS notifications for CloudTrail events and IAM policy change alerts. Requires alarm_notification_email to be set."
+  description = "Enable SNS notifications for CloudTrail events and security monitoring alarms (IAM changes, unauthorized API calls, CloudTrail/Config/S3/SG/VPC/KMS changes). Requires alarm_notification_email to be set."
   type        = bool
   default     = false
 }

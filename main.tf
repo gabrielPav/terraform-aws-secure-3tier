@@ -83,7 +83,7 @@ module "security" {
   s3_access_logs_bucket_id = module.storage.s3_access_logs_bucket_id
   enable_s3_access_logging = true
 
-  # SNS notifications for CloudTrail events and IAM policy change alerts
+  # SNS notifications for CloudTrail events and security monitoring alarms
   enable_cloudtrail_sns_notifications = var.enable_cloudtrail_sns_notifications
   alarm_notification_email            = var.alarm_notification_email
 
@@ -160,13 +160,13 @@ module "compute" {
   db_secret_arn      = module.database.rds_master_user_secret_arn
 
   # EC2 Configuration
-  instance_type         = var.ec2_instance_type
-  min_size              = var.asg_min_size
-  max_size              = var.asg_max_size
-  desired_capacity      = var.asg_desired_capacity
-  ebs_volume_size       = var.ebs_volume_size
-  ebs_volume_type       = "gp3"
-  kms_key_arn           = module.security.kms_key_arn
+  instance_type    = var.ec2_instance_type
+  min_size         = var.asg_min_size
+  max_size         = var.asg_max_size
+  desired_capacity = var.asg_desired_capacity
+  ebs_volume_size  = var.ebs_volume_size
+  ebs_volume_type  = "gp3"
+  kms_key_arn      = module.security.kms_key_arn
 
   # IAM
   iam_instance_profile   = module.security.ec2_instance_profile_name
@@ -247,13 +247,13 @@ module "cdn" {
     aws.us_east_1 = aws.us_east_1
   }
 
-  project_name                 = var.project_name
-  environment                  = var.environment
-  alb_dns_name                 = module.load_balancer.alb_dns_name
-  alb_zone_id                  = module.load_balancer.alb_zone_id
-  s3_bucket_id                 = module.storage.s3_bucket_name
-  s3_bucket_domain_name        = module.storage.s3_bucket_domain_name
-  s3_access_logs_bucket_arn    = module.storage.s3_access_logs_bucket_arn
+  project_name              = var.project_name
+  environment               = var.environment
+  alb_dns_name              = module.load_balancer.alb_dns_name
+  alb_zone_id               = module.load_balancer.alb_zone_id
+  s3_bucket_id              = module.storage.s3_bucket_name
+  s3_bucket_domain_name     = module.storage.s3_bucket_domain_name
+  s3_access_logs_bucket_arn = module.storage.s3_access_logs_bucket_arn
 
   # CloudFront Configuration
   enable_cloudfront  = var.enable_cloudfront

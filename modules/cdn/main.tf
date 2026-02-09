@@ -488,7 +488,7 @@ resource "aws_cloudwatch_log_delivery" "cloudfront_to_s3" {
   count    = var.enable_cloudfront && var.enable_logging ? 1 : 0
   provider = aws.us_east_1
 
-  delivery_source_name    = aws_cloudwatch_log_delivery_source.cloudfront[0].name
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.cloudfront[0].name
   delivery_destination_arn = aws_cloudwatch_log_delivery_destination.s3[0].arn
 
   s3_delivery_configuration {
