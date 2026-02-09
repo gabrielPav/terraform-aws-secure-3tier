@@ -41,6 +41,10 @@ variable "db_engine_version" {
 variable "db_name" {
   description = "Database name"
   type        = string
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9_]+$", var.db_name))
+    error_message = "db_name must contain only alphanumeric characters and underscores."
+  }
 }
 
 variable "db_username" {

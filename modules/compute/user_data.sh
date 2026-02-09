@@ -2,15 +2,27 @@
 set -euo pipefail
 
 # Amazon Linux 2023 uses dnf package manager
-# Pin PHP to 8.3 (security support until Dec 2027) for deterministic builds
-# Skipping 'dnf update -y' to avoid non-deterministic full system updates;
-# security patches are applied via AMI updates and instance refresh
+# Pin PHP version to 8.3 for deterministic builds
+# Security patches are applied via AMI updates and instance refresh
 dnf install -y httpd php8.3 php8.3-mysqlnd php8.3-xml
 
 # Install AWS SDK for PHP so the app can call AWS APIs natively
-# instead of shelling out to the CLI via shell_exec
-curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
-composer require aws/aws-sdk-php --working-dir=/opt/aws-sdk --no-interaction --no-dev
+# Download the Composer installer and verify its SHA-384 checksum against the official signature before executing it.
+EXPECTED_CHECKSUM="$(php -r "copy('https://composer.github.io/installer.sig', 'php://stdout');")"
+php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
+ACTUAL_CHECKSUM="$(php -r "echo hash_file('SHA384', '/tmp/composer-setup.php');")"
+if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
+    echo 'ERROR: Composer installer checksum verification failed' >&2
+    rm -f /tmp/composer-setup.php
+    exit 1
+fi
+php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
+rm -f /tmp/composer-setup.php
+
+# Run Composer as the apache user (least privilege) instead of root
+mkdir -p /opt/aws-sdk
+chown apache:apache /opt/aws-sdk
+runuser -u apache -- composer require aws/aws-sdk-php --working-dir=/opt/aws-sdk --no-interaction --no-dev
 
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
@@ -45,7 +57,8 @@ if ($secrets_ok) {
     $conn->ssl_set(NULL, NULL, '/etc/pki/tls/certs/ca-bundle.crt', NULL, NULL);
     @$conn->real_connect(getenv('DB_HOST'), $credentials['username'], $credentials['password'], getenv('DB_NAME'), (int)getenv('DB_PORT'), NULL, MYSQLI_CLIENT_SSL);
     if ($conn->connect_error) {
-        $db_error = $conn->connect_error;
+        error_log('DB connection failed: ' . $conn->connect_error);
+        $db_error = 'Database connection failed';
     } else {
         $db_connected = true;
         $conn->close();
