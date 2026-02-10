@@ -1,3 +1,8 @@
+variable "aws_region" {
+  description = "Primary AWS region. Used to determine if a separate KMS key is needed in us-east-1."
+  type        = string
+}
+
 variable "project_name" {
   description = "Project name"
   type        = string

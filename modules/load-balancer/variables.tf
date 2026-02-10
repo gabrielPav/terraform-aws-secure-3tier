@@ -139,6 +139,12 @@ variable "create_route53_zone" {
   default     = false
 }
 
+variable "us_east_1_kms_key_arn" {
+  description = "KMS key ARN in us-east-1 for encrypting CloudWatch log groups (Route53 query logs). Required because Route53 query logs must be in us-east-1."
+  type        = string
+  default     = null
+}
+
 variable "enable_dns_query_logging" {
   description = <<-EOT
     Enable DNS query logging for Route53 hosted zone.

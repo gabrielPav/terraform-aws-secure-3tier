@@ -5,14 +5,19 @@
 terraform {
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source                = "hashicorp/aws"
+      version               = "~> 5.0"
+      configuration_aliases = [aws.us_east_1]
     }
   }
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
+
+locals {
+  is_us_east_1 = var.aws_region == "us-east-1"
+}
 
 # ============================================================================
 # KMS Key
@@ -988,4 +993,68 @@ resource "aws_cloudwatch_metric_alarm" "kms_cmk_changes" {
   ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
 
   tags = var.tags
+}
+
+# ============================================================================
+# KMS Key for us-east-1 Resources (WAF Logs, Route53 Query Logs)
+# ============================================================================
+# CloudFront WAF and Route53 query logging require CloudWatch Log Groups in
+# us-east-1. When the primary region is already us-east-1, the main KMS key
+# is reused. Otherwise, a dedicated key is created in us-east-1.
+# ============================================================================
+
+resource "aws_kms_key" "us_east_1" {
+  count    = local.is_us_east_1 ? 0 : 1
+  provider = aws.us_east_1
+
+  description             = "KMS key for ${var.project_name} us-east-1 resources (WAF logs, Route53 query logs)"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableIAMUserPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogsEncryption"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.us-east-1.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          ArnLike = {
+            "kms:EncryptionContext:aws:logs:arn" = "arn:aws:logs:us-east-1:${data.aws_caller_identity.current.account_id}:log-group:*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-us-east-1-kms-key"
+  })
+}
+
+resource "aws_kms_alias" "us_east_1" {
+  count    = local.is_us_east_1 ? 0 : 1
+  provider = aws.us_east_1
+
+  name          = "alias/${var.project_name}-${var.environment}-us-east-1"
+  target_key_id = aws_kms_key.us_east_1[0].key_id
 }

@@ -213,6 +213,7 @@ variable "rds_username" {
   description = "RDS master username"
   type        = string
   default     = "rdsdbadmin"
+  sensitive   = true
 }
 
 variable "rds_allocated_storage" {

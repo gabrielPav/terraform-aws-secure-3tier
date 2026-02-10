@@ -27,3 +27,8 @@ output "cloudtrail_arn" {
   description = "CloudTrail ARN"
   value       = var.enable_cloudtrail ? aws_cloudtrail.main[0].arn : null
 }
+
+output "us_east_1_kms_key_arn" {
+  description = "KMS key ARN for us-east-1 resources (WAF logs, Route53 query logs). Returns the main key when deployed to us-east-1, otherwise a dedicated us-east-1 key."
+  value       = var.aws_region == "us-east-1" ? aws_kms_key.main.arn : aws_kms_key.us_east_1[0].arn
+}

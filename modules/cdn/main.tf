@@ -442,8 +442,7 @@ resource "aws_cloudwatch_log_group" "waf_logs" {
 
   name              = "aws-waf-logs-${var.project_name}-${var.environment}"
   retention_in_days = var.waf_log_retention_days
-
-  # No KMS — would need a dedicated key in us-east-1. Default SSE for now.
+  kms_key_id        = var.us_east_1_kms_key_arn
 
   tags = var.tags
 }

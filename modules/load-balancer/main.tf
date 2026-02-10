@@ -315,6 +315,7 @@ resource "aws_cloudwatch_log_group" "route53_query_logs" {
 
   name              = "/aws/route53/${var.project_name}-${var.environment}"
   retention_in_days = var.dns_query_log_retention_days
+  kms_key_id        = var.us_east_1_kms_key_arn
 
   tags = var.tags
 }

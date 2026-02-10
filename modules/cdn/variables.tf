@@ -69,6 +69,11 @@ variable "enable_waf" {
   default     = true
 }
 
+variable "us_east_1_kms_key_arn" {
+  description = "KMS key ARN in us-east-1 for encrypting CloudWatch log groups (WAF logs). Required because CloudFront WAF logs must be in us-east-1."
+  type        = string
+}
+
 variable "enable_waf_logging" {
   description = "Enable WAF logging to CloudWatch Logs. Logs are stored in us-east-1 (required for CloudFront WAF)."
   type        = bool

@@ -89,6 +89,12 @@ module "networking" {
 module "security" {
   source = "./modules/security"
 
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  aws_region               = var.aws_region
   project_name             = var.project_name
   environment              = var.environment
   s3_bucket_name           = "${var.project_name}-${var.environment}-cloudtrail-logs-${data.aws_caller_identity.current.account_id}"
@@ -247,6 +253,9 @@ module "load_balancer" {
   enable_http2                        = true
   enable_cross_zone                   = true
 
+  # KMS key for CloudWatch log groups in us-east-1 (Route53 query logs)
+  us_east_1_kms_key_arn = module.security.us_east_1_kms_key_arn
+
   # ============================================================================
   # SSL/TLS Configuration
   # ============================================================================
@@ -304,6 +313,9 @@ module "cdn" {
   aws_region          = var.aws_region
   route53_zone_id     = module.load_balancer.route53_zone_id
   alb_certificate_arn = module.load_balancer.acm_certificate_arn
+
+  # KMS key for CloudWatch log groups in us-east-1 (WAF logs)
+  us_east_1_kms_key_arn = module.security.us_east_1_kms_key_arn
 
   # WAF (optional)
   enable_waf = var.enable_waf
