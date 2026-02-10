@@ -118,10 +118,10 @@ resource "aws_security_group" "ec2" {
 # network. HTTPS between ALB and EC2 is not required unless strict compliance
 # mandates end-to-end encryption (e.g., PCI-DSS, HIPAA).
 resource "aws_vpc_security_group_ingress_rule" "ec2_http_from_alb" {
-  for_each = toset(var.alb_security_group_ids)
+  count = length(var.alb_security_group_ids)
 
   security_group_id            = aws_security_group.ec2.id
-  referenced_security_group_id = each.value
+  referenced_security_group_id = var.alb_security_group_ids[count.index]
 
   from_port   = 80
   to_port     = 80
@@ -167,10 +167,10 @@ resource "aws_vpc_security_group_egress_rule" "ec2_https_egress" {
 
 # Egress: Allow database traffic
 resource "aws_vpc_security_group_egress_rule" "ec2_egress_rds" {
-  for_each = toset(var.allowed_security_group_id)
+  count = length(var.allowed_security_group_id)
 
   security_group_id            = aws_security_group.ec2.id
-  referenced_security_group_id = each.value
+  referenced_security_group_id = var.allowed_security_group_id[count.index]
 
   from_port   = var.rds_port
   to_port     = var.rds_port

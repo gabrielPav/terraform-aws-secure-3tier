@@ -42,6 +42,23 @@ variable "enable_s3_access_logging" {
   default     = true
 }
 
+variable "enable_object_lock_cloudtrail" {
+  description = "Enable S3 Object Lock (Governance Mode) on the CloudTrail logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  type        = bool
+  default     = false
+}
+
+variable "object_lock_cloudtrail_retention_days" {
+  description = "Number of days to retain CloudTrail log objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.object_lock_cloudtrail_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
 variable "enable_cloudtrail_sns_notifications" {
   description = "Enable SNS notifications for CloudTrail events and security alarms"
   type        = bool

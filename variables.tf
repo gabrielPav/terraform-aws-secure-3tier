@@ -76,18 +76,69 @@ variable "enable_eic_endpoint" {
 # ============================================================================
 
 variable "enable_s3_object_lock" {
-  description = "Enable S3 Object Lock with Governance Mode on the assets bucket. Prevents object deletion or overwrite for the retention period. Note: enabling this on an existing bucket forces bucket replacement."
+  description = "Enable S3 Object Lock (Governance Mode) on the assets bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
   type        = bool
   default     = false
 }
 
 variable "s3_object_lock_retention_days" {
-  description = "Number of days to retain objects under Governance Mode Object Lock."
+  description = "Number of days to retain assets bucket objects under Governance Mode Object Lock."
   type        = number
   default     = 30
 
   validation {
     condition     = var.s3_object_lock_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
+variable "enable_s3_object_lock_access_logs" {
+  description = "Enable S3 Object Lock (Governance Mode) on the S3 access logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  type        = bool
+  default     = false
+}
+
+variable "s3_object_lock_access_logs_retention_days" {
+  description = "Number of days to retain S3 access log objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.s3_object_lock_access_logs_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
+variable "enable_object_lock_alb_logs" {
+  description = "Enable S3 Object Lock (Governance Mode) on the ALB access logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  type        = bool
+  default     = false
+}
+
+variable "object_lock_alb_logs_retention_days" {
+  description = "Number of days to retain ALB access log objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.object_lock_alb_logs_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
+variable "enable_object_lock_cloudtrail" {
+  description = "Enable S3 Object Lock (Governance Mode) on the CloudTrail logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  type        = bool
+  default     = false
+}
+
+variable "object_lock_cloudtrail_retention_days" {
+  description = "Number of days to retain CloudTrail log objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.object_lock_cloudtrail_retention_days >= 1
     error_message = "Object Lock retention must be at least 1 day."
   }
 }
@@ -191,7 +242,7 @@ variable "domain_name" {
 
     This is required for production workloads because:
     - CloudFront is enabled by default for CDN, DDoS protection, and edge caching
-    - CloudFront requires an ACM certificate for TLS 1.2 enforcement
+    - CloudFront requires an ACM certificate for SSL/TLS enforcement
     - ACM certificates require a custom domain for DNS validation
 
     Terraform will:
@@ -199,10 +250,10 @@ variable "domain_name" {
     2. Look up the Route53 hosted zone for DNS validation
     3. Create DNS records for certificate validation
     4. Configure the ALB HTTPS listener with the validated certificate
-    5. Configure CloudFront with TLS 1.2 enforcement
+    5. Configure CloudFront with SSL/TLS enforcement
     6. Create Route53 A record pointing to CloudFront
 
-    Example: "app.example.com" or "www.webapp.io"
+    Example: "app.example.com" or "webapp.com"
 
     Requirements:
     - The Route53 hosted zone for the root domain must already exist
@@ -249,7 +300,7 @@ variable "create_route53_zone" {
 
 variable "enable_cloudfront" {
   description = <<-EOT
-    Enable CloudFront CDN distribution in front of the ALB.
+    Enable CloudFront CDN distribution in front of the ALB
 
     Strongly recommended to keep enabled (default: true). CloudFront provides:
     - HTTPS between users and edge locations (end-to-end encryption with ALB)
@@ -310,7 +361,7 @@ variable "alarm_notification_email" {
 }
 
 variable "enable_cloudtrail_sns_notifications" {
-  description = "Enable SNS notifications for CloudTrail events and security monitoring alarms (IAM changes, unauthorized API calls, CloudTrail/Config/S3/SG/VPC/KMS changes). Requires alarm_notification_email to be set."
+  description = "Enable SNS notifications for CloudTrail events and security monitoring alarms (IAM changes, unauthorized API calls, CloudTrail/S3/EC2/VPC/KMS changes). Requires alarm_notification_email to be set."
   type        = bool
   default     = false
 }

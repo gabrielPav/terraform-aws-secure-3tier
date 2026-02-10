@@ -294,8 +294,9 @@ resource "aws_iam_instance_profile" "ec2" {
 # ============================================================================
 
 resource "aws_s3_bucket" "cloudtrail" {
-  count  = var.enable_cloudtrail ? 1 : 0
-  bucket = var.s3_bucket_name
+  count               = var.enable_cloudtrail ? 1 : 0
+  bucket              = var.s3_bucket_name
+  object_lock_enabled = var.enable_object_lock_cloudtrail
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-cloudtrail"
@@ -328,6 +329,20 @@ resource "aws_s3_bucket_versioning" "cloudtrail" {
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+resource "aws_s3_bucket_object_lock_configuration" "cloudtrail" {
+  count  = var.enable_cloudtrail && var.enable_object_lock_cloudtrail ? 1 : 0
+  bucket = aws_s3_bucket.cloudtrail[0].id
+
+  rule {
+    default_retention {
+      mode = "GOVERNANCE"
+      days = var.object_lock_cloudtrail_retention_days
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.cloudtrail]
 }
 
 # CloudTrail bucket - S3 server access logging configuration
@@ -838,6 +853,47 @@ resource "aws_cloudwatch_metric_alarm" "security_group_changes" {
   comparison_operator = "GreaterThanOrEqualToThreshold"
   evaluation_periods  = 1
   metric_name         = "SecurityGroupChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
+# ============================================================================
+# CloudWatch Metric Filter and Alarm for Route Table Changes
+# ============================================================================
+# Detects creation, deletion, and modification of route tables and routes.
+# CIS AWS Foundations Benchmark 3.13
+# ============================================================================
+
+resource "aws_cloudwatch_log_metric_filter" "route_table_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-route-table-changes"
+  pattern        = "{($.eventName=CreateRoute)||($.eventName=CreateRouteTable)||($.eventName=ReplaceRoute)||($.eventName=ReplaceRouteTableAssociation)||($.eventName=DeleteRouteTable)||($.eventName=DeleteRoute)||($.eventName=DisassociateRouteTable)}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "RouteTableChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "route_table_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-route-table-changes"
+  alarm_description   = "Alerts when route tables or routes are created, replaced, deleted, or disassociated"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "RouteTableChanges"
   namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
   period              = 300
   statistic           = "Sum"

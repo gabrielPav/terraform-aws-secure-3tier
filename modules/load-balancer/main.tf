@@ -33,8 +33,9 @@ locals {
 # ALB access logs bucket
 
 resource "aws_s3_bucket" "alb_logs" {
-  count  = var.enable_access_logs ? 1 : 0
-  bucket = "${var.project_name}-${var.environment}-alb-logs-${data.aws_caller_identity.current.account_id}"
+  count               = var.enable_access_logs ? 1 : 0
+  bucket              = "${var.project_name}-${var.environment}-alb-logs-${data.aws_caller_identity.current.account_id}"
+  object_lock_enabled = var.enable_object_lock_alb_logs
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-alb-logs"
@@ -48,6 +49,20 @@ resource "aws_s3_bucket_versioning" "alb_logs_versioning" {
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+resource "aws_s3_bucket_object_lock_configuration" "alb_logs" {
+  count  = var.enable_access_logs && var.enable_object_lock_alb_logs ? 1 : 0
+  bucket = aws_s3_bucket.alb_logs[0].id
+
+  rule {
+    default_retention {
+      mode = "GOVERNANCE"
+      days = var.object_lock_alb_logs_retention_days
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.alb_logs_versioning]
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {

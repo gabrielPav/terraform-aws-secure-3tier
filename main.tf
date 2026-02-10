@@ -83,6 +83,10 @@ module "security" {
   s3_access_logs_bucket_id = module.storage.s3_access_logs_bucket_id
   enable_s3_access_logging = true
 
+  # Object Lock for CloudTrail bucket
+  enable_object_lock_cloudtrail         = var.enable_object_lock_cloudtrail
+  object_lock_cloudtrail_retention_days = var.object_lock_cloudtrail_retention_days
+
   # SNS notifications for CloudTrail events and security monitoring alarms
   enable_cloudtrail_sns_notifications = var.enable_cloudtrail_sns_notifications
   alarm_notification_email            = var.alarm_notification_email
@@ -108,6 +112,10 @@ module "storage" {
   # Object Lock (Governance Mode)
   enable_s3_object_lock         = var.enable_s3_object_lock
   s3_object_lock_retention_days = var.s3_object_lock_retention_days
+
+  # Object Lock for S3 access logs bucket
+  enable_s3_object_lock_access_logs         = var.enable_s3_object_lock_access_logs
+  s3_object_lock_access_logs_retention_days = var.s3_object_lock_access_logs_retention_days
 
   # CDN module manages the assets bucket policy when CloudFront is on
   skip_bucket_policy = var.enable_cloudfront
@@ -207,6 +215,10 @@ module "load_balancer" {
   s3_access_logs_bucket_id   = module.storage.s3_access_logs_bucket_id
   kms_key_arn                = module.security.kms_key_arn
   enable_deletion_protection = var.environment == "production" ? true : false
+
+  # Object Lock for ALB logs bucket
+  enable_object_lock_alb_logs         = var.enable_object_lock_alb_logs
+  object_lock_alb_logs_retention_days = var.object_lock_alb_logs_retention_days
   enable_http2               = true
   enable_cross_zone          = true
 

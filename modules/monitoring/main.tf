@@ -108,6 +108,36 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alarm_notification_email
 }
 
+# ============================================================================
+# RDS Event Subscription (Instance-Level)
+# ============================================================================
+# Notifies on failover, failure, maintenance, and other critical RDS events.
+# Only created when an alarm notification email is provided (SNS topic exists).
+# ============================================================================
+
+resource "aws_db_event_subscription" "instance" {
+  count = var.alarm_notification_email != "" ? 1 : 0
+
+  name      = "${var.project_name}-${var.environment}-rds-instance-events"
+  sns_topic = aws_sns_topic.alarms[0].arn
+
+  source_type = "db-instance"
+  source_ids  = [var.rds_instance_id]
+
+  event_categories = [
+    "availability",
+    "deletion",
+    "failover",
+    "failure",
+    "low storage",
+    "maintenance",
+    "notification",
+    "recovery",
+  ]
+
+  tags = var.tags
+}
+
 # CloudWatch Alarms
 resource "aws_cloudwatch_metric_alarm" "alb_high_5xx" {
   count = var.enable_alarms ? 1 : 0
@@ -165,6 +195,28 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "RDS CPU above 80%"
+  alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+  ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
+
+  dimensions = {
+    DBInstanceIdentifier = var.rds_instance_id
+  }
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "rds_low_storage" {
+  count = var.enable_alarms && var.enable_rds_alarm ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-rds-low-storage"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "FreeStorageSpace"
+  namespace           = "AWS/RDS"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 5368709120 # 5 GB in bytes
+  alarm_description   = "RDS free storage space below 5 GB"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 

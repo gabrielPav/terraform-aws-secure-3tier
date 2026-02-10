@@ -72,7 +72,8 @@ resource "aws_s3_bucket_object_lock_configuration" "main" {
 # Collects access logs from all project S3 buckets
 
 resource "aws_s3_bucket" "s3_access_logs" {
-  bucket = "${var.project_name}-${var.environment}-s3-access-logs-${data.aws_caller_identity.current.account_id}"
+  bucket              = "${var.project_name}-${var.environment}-s3-access-logs-${data.aws_caller_identity.current.account_id}"
+  object_lock_enabled = var.enable_s3_object_lock_access_logs
 
   tags = merge(var.tags, {
     Name    = "${var.project_name}-${var.environment}-s3-access-logs"
@@ -103,6 +104,20 @@ resource "aws_s3_bucket_versioning" "s3_access_logs" {
   versioning_configuration {
     status = "Enabled"
   }
+}
+
+resource "aws_s3_bucket_object_lock_configuration" "s3_access_logs" {
+  count  = var.enable_s3_object_lock_access_logs ? 1 : 0
+  bucket = aws_s3_bucket.s3_access_logs.id
+
+  rule {
+    default_retention {
+      mode = "GOVERNANCE"
+      days = var.s3_object_lock_access_logs_retention_days
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.s3_access_logs]
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "s3_access_logs" {

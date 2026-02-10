@@ -258,6 +258,10 @@ resource "aws_cloudfront_distribution" "main" {
       origin_ssl_protocols   = ["TLSv1.2"]
     }
 
+    origin_shield {
+      enabled              = true
+      origin_shield_region = var.aws_region
+    }
   }
 
   # S3 Origin
@@ -267,10 +271,27 @@ resource "aws_cloudfront_distribution" "main" {
     origin_access_control_id = aws_cloudfront_origin_access_control.s3[0].id
   }
 
+  # Origin failover: if the ALB returns 500-504, serve from S3 instead
+  origin_group {
+    origin_id = "${var.project_name}-${var.environment}-origin-group"
+
+    failover_criteria {
+      status_codes = [500, 502, 503, 504]
+    }
+
+    member {
+      origin_id = "${var.project_name}-${var.environment}-alb"
+    }
+
+    member {
+      origin_id = "${var.project_name}-${var.environment}-s3"
+    }
+  }
+
   default_cache_behavior {
     allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods   = ["GET", "HEAD"]
-    target_origin_id = "${var.project_name}-${var.environment}-alb"
+    target_origin_id = "${var.project_name}-${var.environment}-origin-group"
 
     cache_policy_id = aws_cloudfront_cache_policy.alb[0].id
 

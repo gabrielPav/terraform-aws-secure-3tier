@@ -11,14 +11,14 @@ While many projects implement a standard 3-tier architecture, this one is design
 ## Features
 
 - **Networking**: VPC with public and private subnets across multiple AZs, NAT gateways, VPC and EIC endpoints.
-- **Compute**: Auto-scaling groups with launch templates, EC2 instances with IMDSv2, and encrypted EBS volumes.
+- **Compute**: Auto-scaling groups with launch templates, EC2 instances with IMDSv2, encrypted EBS volumes, and stable security group rules.
 - **Storage**: S3 buckets for assets and logs with versioning, encryption, and lifecycle policies.
 - **Database**: RDS with Multi-AZ support, encryption at rest, encryption in transit, and automated backups.
 - **Load Balancing**: Application Load Balancer (ALB) with HTTPS enforced and HTTP/2 support.
 - **SSL/TLS**: ACM certificate always provisioned and validated via Route53 DNS (HTTPS is mandatory).
-- **CDN**: CloudFront distribution with ALB origin (default) and S3 origin for static assets.
+- **CDN**: CloudFront distribution with Origin Shield, ALB origin (default) with origin failover, and S3 origin for static assets.
 - **Security**: IAM roles, customer-managed KMS keys, WAF (Log4j, XSS, and SQLi protection), data perimeters, and hardened security groups.
-- **Monitoring and Logging**: CloudTrail and CloudFront logging, enhanced monitoring, CloudWatch alarms and dashboards.
+- **Monitoring and Logging**: CloudTrail and CloudFront logging, enhanced monitoring, CloudWatch alerts and dashboards, and RDS event subscriptions.
 
 ## Prerequisites
 
@@ -280,7 +280,7 @@ See `variables.tf` for the complete list of available variables.
 - ACM certificates with DNS validation
 - CloudFront origin connections use HTTPS-only
 - RDS connections require SSL/TLS encryption
-- HTTP to HTTPS redirect handled at CloudFront edge; ALB port 80 closed when CloudFront is enabled
+- HTTP to HTTPS redirect handled at CloudFront edge
 - TLS policies restricted to modern ciphers only
 - ALB drops invalid header fields
 
@@ -292,7 +292,7 @@ See `variables.tf` for the complete list of available variables.
 - Lifecycle policies for log retention and archival
 - Multipart upload auto-abort for incomplete uploads
 - S3 bucket policies prevent public ACL usage
-- Optional S3 Object Lock for compliance retention
+- S3 Object Lock available on assets and logs buckets
 
 ### Logging & Auditing
 
@@ -319,6 +319,9 @@ See `variables.tf` for the complete list of available variables.
 ### Monitoring & Alerting
 
 - CloudWatch alarms for CPU, errors, and performance
+- RDS low storage alarm (< 5 GB threshold)
+- RDS event subscription for failover, failure, maintenance, and recovery notifications
+- Route table changes alarm (CIS AWS Foundations Benchmark 3.13)
 - CloudWatch dashboard for infrastructure visibility
 - Log retention policies enforced
 
@@ -326,6 +329,8 @@ See `variables.tf` for the complete list of available variables.
 
 - WAF enabled with OWASP managed rules 
 - CloudFront Origin Access Control for S3
+- CloudFront Origin Shield for reduced origin load and improved cache hit ratio
+- CloudFront origin failover group (ALB to S3 on 500-504 errors)
 - CloudFront geo-restriction for regional access control
 - CloudFront security headers policy (HSTS, X-Frame-Options, Content-Security-Policy)
 - Cross-zone load balancing enabled

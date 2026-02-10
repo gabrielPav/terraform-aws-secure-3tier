@@ -26,7 +26,7 @@ variable "kms_key_id" {
 }
 
 variable "enable_s3_object_lock" {
-  description = "Enable S3 Object Lock with Governance Mode on the assets bucket. Prevents object deletion or overwrite for the retention period. Requires versioning (forced on when enabled). Note: enabling this on an existing bucket forces bucket replacement."
+  description = "Enable S3 Object Lock (Governance Mode) on the assets bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
   type        = bool
   default     = false
 }
@@ -38,6 +38,23 @@ variable "s3_object_lock_retention_days" {
 
   validation {
     condition     = var.s3_object_lock_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
+variable "enable_s3_object_lock_access_logs" {
+  description = "Enable S3 Object Lock (Governance Mode) on the S3 access logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  type        = bool
+  default     = false
+}
+
+variable "s3_object_lock_access_logs_retention_days" {
+  description = "Number of days to retain S3 access log objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.s3_object_lock_access_logs_retention_days >= 1
     error_message = "Object Lock retention must be at least 1 day."
   }
 }

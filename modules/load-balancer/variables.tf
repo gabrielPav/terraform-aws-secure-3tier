@@ -51,6 +51,23 @@ variable "kms_key_arn" {
   default     = null
 }
 
+variable "enable_object_lock_alb_logs" {
+  description = "Enable S3 Object Lock (Governance Mode) on the ALB access logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  type        = bool
+  default     = false
+}
+
+variable "object_lock_alb_logs_retention_days" {
+  description = "Number of days to retain ALB access log objects under Governance Mode Object Lock."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.object_lock_alb_logs_retention_days >= 1
+    error_message = "Object Lock retention must be at least 1 day."
+  }
+}
+
 variable "enable_deletion_protection" {
   description = "Enable deletion protection for the ALB"
   type        = bool
