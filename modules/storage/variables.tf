@@ -65,6 +65,18 @@ variable "skip_bucket_policy" {
   default     = false
 }
 
+variable "enable_s3_crr" {
+  description = "Enable S3 cross-region replication for the assets bucket. Requires versioning to be enabled."
+  type        = bool
+  default     = false
+}
+
+variable "kms_key_arn" {
+  description = "KMS key ARN for the source bucket. Used in the replication IAM policy to allow decryption of source objects."
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)

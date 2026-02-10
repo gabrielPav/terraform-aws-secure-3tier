@@ -365,3 +365,19 @@ variable "enable_cloudtrail_sns_notifications" {
   type        = bool
   default     = false
 }
+
+# ============================================================================
+# Cross-Region Replication Variables
+# ============================================================================
+
+variable "enable_s3_crr" {
+  description = "Enable S3 cross-region replication for the assets bucket. Asynchronously copies objects to a replica bucket in a second region for disaster recovery."
+  type        = bool
+  default     = false
+}
+
+variable "s3_replica_region" {
+  description = "AWS region for the S3 cross-region replica bucket (e.g., us-west-2). Must differ from the primary aws_region."
+  type        = string
+  default     = "us-west-2"
+}

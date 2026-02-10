@@ -27,3 +27,13 @@ output "s3_access_logs_bucket_domain" {
   description = "Centralized S3 access logs bucket domain name"
   value       = aws_s3_bucket.s3_access_logs.bucket_domain_name
 }
+
+output "s3_replica_bucket_id" {
+  description = "S3 cross-region replica bucket ID. Empty if CRR is disabled."
+  value       = var.enable_s3_crr ? aws_s3_bucket.replica[0].id : ""
+}
+
+output "s3_replica_bucket_arn" {
+  description = "S3 cross-region replica bucket ARN. Empty if CRR is disabled."
+  value       = var.enable_s3_crr ? aws_s3_bucket.replica[0].arn : ""
+}

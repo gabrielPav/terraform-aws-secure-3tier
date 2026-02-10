@@ -12,7 +12,7 @@ While many projects implement a standard 3-tier architecture, this one is design
 
 - **Networking**: VPC with public and private subnets across multiple AZs, NAT gateways, VPC and EIC endpoints.
 - **Compute**: Auto-scaling groups with launch templates, EC2 instances with IMDSv2, encrypted EBS volumes, and stable security group rules.
-- **Storage**: S3 buckets for assets and logs with versioning, encryption, and lifecycle policies.
+- **Storage**: S3 buckets for assets and logs with versioning, encryption, lifecycle policies, and optional cross-region replication.
 - **Database**: RDS with Multi-AZ support, encryption at rest, encryption in transit, and automated backups.
 - **Load Balancing**: Application Load Balancer (ALB) with HTTPS enforced and HTTP/2 support.
 - **SSL/TLS**: ACM certificate always provisioned and validated via Route53 DNS (HTTPS is mandatory).
@@ -215,6 +215,8 @@ terraform destroy
 | `aws_region` | AWS region for resources | `string` | `"us-east-1"` | No |
 | `create_route53_zone` | Create new Route53 zone (`true`) or use existing (`false`) | `bool` | `false` | No |
 | `enable_eic_endpoint` | Enable EC2 Instance Connect Endpoint for SSH access | `bool` | `true` | No |
+| `enable_s3_crr` | Enable S3 cross-region replication for the assets bucket | `bool` | `false` | No |
+| `s3_replica_region` | AWS region for the S3 replica bucket | `string` | `"us-west-2"` | No |
 
 See `variables.tf` for the complete list of available variables.
 
@@ -293,6 +295,7 @@ See `variables.tf` for the complete list of available variables.
 - Multipart upload auto-abort for incomplete uploads
 - S3 bucket policies prevent public ACL usage
 - S3 Object Lock available on assets and logs buckets
+- Cross-region replication available for assets bucket (disaster recovery)
 
 ### Logging & Auditing
 

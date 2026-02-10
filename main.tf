@@ -35,6 +35,22 @@ provider "aws" {
   }
 }
 
+# Provider alias for S3 cross-region replication destination
+provider "aws" {
+  alias  = "replica"
+  region = var.s3_replica_region
+  default_tags {
+    tags = merge(
+      var.common_tags,
+      {
+        ManagedBy   = "Terraform"
+        Environment = var.environment
+        Project     = var.project_name
+      }
+    )
+  }
+}
+
 # ============================================================================
 # Data Sources
 # ============================================================================
@@ -101,9 +117,15 @@ module "security" {
 module "storage" {
   source = "./modules/storage"
 
+  providers = {
+    aws         = aws
+    aws.replica = aws.replica
+  }
+
   project_name = var.project_name
   environment  = var.environment
   kms_key_id   = module.security.kms_key_id
+  kms_key_arn  = module.security.kms_key_arn
 
   # S3 Configuration
   s3_bucket_name       = "${var.project_name}-${var.environment}-assets-${data.aws_caller_identity.current.account_id}"
@@ -119,6 +141,9 @@ module "storage" {
 
   # CDN module manages the assets bucket policy when CloudFront is on
   skip_bucket_policy = var.enable_cloudfront
+
+  # Cross-region replication for disaster recovery
+  enable_s3_crr = var.enable_s3_crr
 
   tags = var.common_tags
 }
@@ -219,8 +244,8 @@ module "load_balancer" {
   # Object Lock for ALB logs bucket
   enable_object_lock_alb_logs         = var.enable_object_lock_alb_logs
   object_lock_alb_logs_retention_days = var.object_lock_alb_logs_retention_days
-  enable_http2               = true
-  enable_cross_zone          = true
+  enable_http2                        = true
+  enable_cross_zone                   = true
 
   # ============================================================================
   # SSL/TLS Configuration
