@@ -23,6 +23,7 @@ locals {
 # KMS Key
 # ============================================================================
 
+# In production environments add lifecycle { prevent_destroy = true }
 resource "aws_kms_key" "main" {
   description             = "KMS key for ${var.project_name} encryption"
   deletion_window_in_days = 30
@@ -150,14 +151,10 @@ resource "aws_kms_key" "main" {
       },
       {
         # CloudFront OAC needs to decrypt S3 objects encrypted with this KMS key.
-        # This statement is not scoped to a specific distribution ARN because that
-        # would create a Terraform circular dependency between the KMS key and
-        # the CloudFront distribution. Access is still restricted because the S3
-        # bucket policy only allows our specific distribution (via AWS:SourceArn)
-        # — any other distribution is blocked before KMS decryption is reached.
-        #
-        # In short: the broad KMS permission here is acceptable because S3 is
-        # the gatekeeper — if S3 denies the request, KMS is never called.
+        # Scoped to this account only (not a specific distribution ARN) to avoid
+        # a circular dependency between the KMS key and CloudFront distribution.
+        # The S3 bucket policy provides the second layer of defense by restricting
+        # access to our specific distribution via AWS:SourceArn.
         Sid    = "Allow CloudFront to decrypt S3 objects"
         Effect = "Allow"
         Principal = {
@@ -168,6 +165,11 @@ resource "aws_kms_key" "main" {
           "kms:GenerateDataKey*"
         ]
         Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       },
       {
         Sid    = "Allow SNS to use the key"
@@ -606,6 +608,11 @@ resource "aws_sns_topic_policy" "cloudtrail_notifications" {
         }
         Action   = "sns:Publish"
         Resource = aws_sns_topic.cloudtrail_notifications[0].arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       }
     ]
   })
@@ -693,7 +700,7 @@ resource "aws_cloudwatch_metric_alarm" "unauthorized_api_calls" {
   namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
   period              = 300
   statistic           = "Sum"
-  threshold           = 1
+  threshold           = 5
   treat_missing_data  = "notBreaching"
 
   alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]

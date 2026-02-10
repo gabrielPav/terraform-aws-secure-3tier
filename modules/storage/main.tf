@@ -18,6 +18,7 @@ data "aws_caller_identity" "current" {}
 # S3 Bucket
 # ============================================================================
 
+# In production environments add lifecycle { prevent_destroy = true }
 resource "aws_s3_bucket" "main" {
   bucket              = var.s3_bucket_name
   object_lock_enabled = var.enable_s3_object_lock

@@ -103,6 +103,7 @@ resource "aws_db_parameter_group" "main" {
 }
 
 # RDS Instance
+# In production environments add lifecycle { prevent_destroy = true }
 resource "aws_db_instance" "main" {
   identifier = "${var.project_name}-${var.environment}-db"
 

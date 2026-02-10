@@ -196,7 +196,7 @@ enable_eic_endpoint = false
 
 ### Destroy Infrastructure
 
-Important: If deletion_protection = true (production default), you'll need to manually disable it on the ALB and RDS first,
+Important: If deletion_protection = true (default in production), you'll need to manually disable it on the ALB and RDS first,
   or Terraform will fail to destroy.
 
 ```bash

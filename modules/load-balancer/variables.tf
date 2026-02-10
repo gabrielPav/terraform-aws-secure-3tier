@@ -13,6 +13,11 @@ variable "vpc_id" {
   type        = string
 }
 
+variable "vpc_cidr" {
+  description = "VPC CIDR block. Used to scope ALB egress to targets within the VPC only."
+  type        = string
+}
+
 variable "public_subnet_ids" {
   description = "List of public subnet IDs for external ALB placement"
   type        = list(string)

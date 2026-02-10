@@ -33,14 +33,16 @@ require '/opt/aws-sdk/vendor/autoload.php';
 
 use Aws\SecretsManager\SecretsManagerClient;
 
+$config = require '/etc/app-config.php';
+
 $credentials = null;
 try {
     $client = new SecretsManagerClient([
-        'region'  => getenv('AWS_REGION'),
+        'region'  => $config['aws_region'],
         'version' => 'latest',
     ]);
     $result = $client->getSecretValue([
-        'SecretId' => getenv('DB_SECRET_ARN'),
+        'SecretId' => $config['db_secret_arn'],
     ]);
     $credentials = json_decode($result['SecretString'], true);
 } catch (Exception $e) {
@@ -55,7 +57,7 @@ if ($secrets_ok) {
     $conn = mysqli_init();
     $conn->options(MYSQLI_SET_CHARSET_NAME, 'utf8mb4');
     $conn->ssl_set(NULL, NULL, '/etc/pki/tls/certs/ca-bundle.crt', NULL, NULL);
-    @$conn->real_connect(getenv('DB_HOST'), $credentials['username'], $credentials['password'], getenv('DB_NAME'), (int)getenv('DB_PORT'), NULL, MYSQLI_CLIENT_SSL);
+    @$conn->real_connect($config['db_host'], $credentials['username'], $credentials['password'], $config['db_name'], (int)$config['db_port'], NULL, MYSQLI_CLIENT_SSL);
     if ($conn->connect_error) {
         error_log('DB connection failed: ' . $conn->connect_error);
         $db_error = 'Database connection failed';
@@ -125,13 +127,17 @@ if ($secrets_ok) {
 </html>
 PHPEOF
 
-cat > /etc/httpd/conf.d/env.conf <<EOF
-SetEnv DB_HOST "${rds_endpoint}"
-SetEnv DB_PORT "${rds_port}"
-SetEnv DB_NAME "${db_name}"
-SetEnv DB_SECRET_ARN "${db_secret_arn}"
-SetEnv AWS_REGION "$AWS_REGION"
+cat > /etc/app-config.php <<EOF
+<?php return [
+    'db_host'      => '${rds_endpoint}',
+    'db_port'      => '${rds_port}',
+    'db_name'      => '${db_name}',
+    'db_secret_arn' => '${db_secret_arn}',
+    'aws_region'   => '$AWS_REGION',
+];
 EOF
+chmod 0400 /etc/app-config.php
+chown apache:apache /etc/app-config.php
 
 chown apache:apache /var/www/html/index.php
 systemctl enable httpd

@@ -258,15 +258,17 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
   cidr_ipv4   = "0.0.0.0/0"
 }
 
-# Broad egress is the standard pattern for ALBs. The ALB is a managed service
-# that only forwards traffic to registered targets. It cannot be compromised
-# to initiate arbitrary outbound connections like an EC2 instance could.
-resource "aws_vpc_security_group_egress_rule" "alb_all_egress" {
+# ALB only forwards to registered targets on port 80 within the VPC.
+# Scoped to VPC CIDR instead of a target SG to avoid a circular dependency
+# (compute needs ALB SG, and referencing compute SG here would create a cycle).
+resource "aws_vpc_security_group_egress_rule" "alb_to_targets" {
   security_group_id = aws_security_group.alb.id
-  description       = "Allow all outbound traffic"
+  description       = "HTTP to targets within VPC"
 
-  ip_protocol = "-1"
-  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 80
+  to_port     = 80
+  ip_protocol = "tcp"
+  cidr_ipv4   = var.vpc_cidr
 }
 
 # ACM certificate (only when domain_name is provided without an existing cert)

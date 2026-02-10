@@ -98,13 +98,13 @@ variable "deletion_protection" {
 variable "enhanced_monitoring_interval" {
   description = "Enhanced monitoring interval in seconds (0 to disable, 1, 5, 10, 15, 30, or 60)"
   type        = number
-  default     = 0
+  default     = 60
 }
 
 variable "performance_insights_enabled" {
   description = "Enable Performance Insights for RDS"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "performance_insights_retention_period" {
