@@ -217,6 +217,7 @@ terraform destroy
 | `enable_eic_endpoint` | Enable EC2 Instance Connect Endpoint for SSH access | `bool` | `true` | No |
 | `enable_s3_crr` | Enable S3 cross-region replication for the assets bucket | `bool` | `false` | No |
 | `s3_replica_region` | AWS region for the S3 replica bucket | `string` | `"us-west-2"` | No |
+| `enable_s3_object_lock` | Enable S3 Object Lock on the assets bucket | `bool` | `true` | No |
 
 See `variables.tf` for the complete list of available variables.
 
@@ -318,6 +319,8 @@ See `variables.tf` for the complete list of available variables.
 - Secrets rotation automated via Secrets Manager
 - Parameter group family auto-derived from engine and version (no manual override needed)
 - Database audit logging enabled
+- Enhanced Monitoring enabled
+- Performance Insights enabled for query-level diagnostics
 
 ### Monitoring & Alerting
 
