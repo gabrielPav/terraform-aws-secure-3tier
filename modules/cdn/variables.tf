@@ -77,7 +77,7 @@ variable "us_east_1_kms_key_arn" {
 variable "enable_waf_logging" {
   description = "Enable WAF logging to CloudWatch Logs. Logs are stored in us-east-1 (required for CloudFront WAF)."
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "waf_log_retention_days" {

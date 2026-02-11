@@ -55,6 +55,12 @@ variable "enable_eic_endpoint" {
   default     = true
 }
 
+variable "flow_log_retention_days" {
+  description = "Number of days to retain VPC Flow Log data in CloudWatch"
+  type        = number
+  default     = 365
+}
+
 variable "kms_key_arn" {
   description = "KMS key ARN for CloudWatch log group encryption"
   type        = string

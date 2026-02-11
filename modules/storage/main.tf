@@ -324,7 +324,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
 # accidental or malicious deletes in the source do not propagate.
 # ============================================================================
 
-# KMS key in replica region for encrypting replicated objects
+# KMS key in replica region for encrypting replicated objects.
+# No explicit key policy needed — the AWS default grants the account root kms:*,
+# which lets IAM policies control access. The S3 replication IAM role already has
+# kms:Encrypt on this key, so replication works without extra service grants.
 resource "aws_kms_key" "replica" {
   count    = var.enable_s3_crr ? 1 : 0
   provider = aws.replica

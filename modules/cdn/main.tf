@@ -352,14 +352,14 @@ resource "aws_wafv2_web_acl" "main" {
     allow {}
   }
 
-  # Rate limiting - blocks IPs exceeding 1500 requests per 5 minutes
+  # Rate limiting - blocks IPs exceeding 500 requests per 5 minutes
   rule {
     name     = "RateLimitRule"
     priority = 0
 
     statement {
       rate_based_statement {
-        limit              = 1500
+        limit              = 500
         aggregate_key_type = "IP"
       }
     }
@@ -416,6 +416,29 @@ resource "aws_wafv2_web_acl" "main" {
     visibility_config {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.project_name}-${var.environment}-waf-bad-inputs"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # SQL Injection Rule Set - inspects query strings, body, cookies, and URI path
+  rule {
+    name     = "AWSManagedRulesSQLiRuleSet"
+    priority = 3
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesSQLiRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project_name}-${var.environment}-waf-sqli"
       sampled_requests_enabled   = true
     }
   }

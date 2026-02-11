@@ -12,6 +12,7 @@ terraform {
 }
 
 data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
 
 # CloudWatch Dashboard
 resource "aws_cloudwatch_dashboard" "main" {
@@ -100,6 +101,46 @@ resource "aws_sns_topic" "alarms" {
   tags = var.tags
 }
 
+resource "aws_sns_topic_policy" "alarms" {
+  count = var.alarm_notification_email != "" ? 1 : 0
+
+  arn = aws_sns_topic.alarms[0].arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowCloudWatchAlarmsPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudwatch.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.alarms[0].arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "AllowRDSEventsPublish"
+        Effect = "Allow"
+        Principal = {
+          Service = "events.rds.amazonaws.com"
+        }
+        Action   = "sns:Publish"
+        Resource = aws_sns_topic.alarms[0].arn
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_sns_topic_subscription" "email" {
   count = var.alarm_notification_email != "" ? 1 : 0
 
@@ -151,6 +192,7 @@ resource "aws_cloudwatch_metric_alarm" "alb_high_5xx" {
   statistic           = "Sum"
   threshold           = 10
   alarm_description   = "ALB 5xx error rate exceeded threshold"
+  treat_missing_data  = "notBreaching"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
@@ -173,6 +215,7 @@ resource "aws_cloudwatch_metric_alarm" "asg_cpu_high" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "EC2 CPU above 80%"
+  treat_missing_data  = "notBreaching"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
@@ -195,6 +238,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu_high" {
   statistic           = "Average"
   threshold           = 80
   alarm_description   = "RDS CPU above 80%"
+  treat_missing_data  = "notBreaching"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 
@@ -217,6 +261,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_low_storage" {
   statistic           = "Average"
   threshold           = 5368709120 # 5 GB in bytes
   alarm_description   = "RDS free storage space below 5 GB"
+  treat_missing_data  = "notBreaching"
   alarm_actions       = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
   ok_actions          = var.alarm_notification_email != "" ? [aws_sns_topic.alarms[0].arn] : []
 

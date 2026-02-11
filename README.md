@@ -25,7 +25,8 @@ While many projects implement a standard 3-tier architecture, this one is design
 - [Terraform](https://www.terraform.io/downloads.html) >= 1.3.0.
 - [AWS CLI](https://aws.amazon.com/cli/) configured with appropriate credentials.
 - An AWS account with sufficient permissions.
-- A registered domain name.
+- A registered domain name (e.g., app.example.com).
+- Before initializing, you should configure a Remote Backend (e.g., S3 and DynamoDB) to ensure state security and prevent resource corruption during team collaboration.
 
 ## Custom Domain (Required)
 

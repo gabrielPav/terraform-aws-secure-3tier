@@ -212,7 +212,7 @@ variable "rds_database_name" {
 variable "rds_username" {
   description = "RDS master username"
   type        = string
-  default     = "rdsdbadmin"
+  default     = "dbopsadmin"
   sensitive   = true
 }
 
@@ -309,8 +309,8 @@ variable "enable_cloudfront" {
     - ALB security group restricted to CloudFront IPs only (not open to the internet)
     - WAF, DDoS protection, and edge caching
 
-    When disabled, the ALB is exposed directly to the internet and handles
-    the HTTP to HTTPS redirect itself, which requires port 80 open to the public.
+    Disabling CloudFront removes WAF and DDoS protection and exposes the ALB
+    directly to the internet. Only disable for testing or non-production use.
   EOT
   type        = bool
   default     = true
@@ -361,8 +361,9 @@ variable "alarm_notification_email" {
   default     = ""
 }
 
+# Disabled by default, notifications are an optional secondary layer
 variable "enable_cloudtrail_sns_notifications" {
-  description = "Enable SNS notifications for CloudTrail events and security monitoring alarms (IAM changes, unauthorized API calls, CloudTrail/S3/EC2/VPC/KMS changes). Requires alarm_notification_email to be set."
+  description = "Enable SNS notifications for CloudTrail events and security monitoring alarms. Requires alarm_notification_email to be set."
   type        = bool
   default     = false
 }
