@@ -132,8 +132,7 @@ resource "aws_db_instance" "main" {
   backup_window           = "03:00-04:00"
   maintenance_window      = "mon:04:00-mon:05:00"
 
-  # "general" log omitted — it records every query, which is expensive
-  # at scale and may capture sensitive data in query parameters
+  # "general" log omitted (it records every query, which may capture sensitive data)
   enabled_cloudwatch_logs_exports = ["error", "slowquery"]
 
   # Enhanced Monitoring

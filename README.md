@@ -6,7 +6,7 @@
 
 This project automates the deployment of a secure, highly available, production-ready 3-tier architecture on AWS using Terraform.
 
-While many projects implement a standard 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions an application stack including networking, compute, database, load balancing, CDN, WAF, and monitoring - all built using a defense-in-depth strategy, best-practice guardrails, zero-trust least-privilege access, encryption, and auditable configurations to support real-world deployments.
+While many projects implement a standard 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete AWS environment using a defense-in-depth strategy, best-practice guardrails, zero-trust least-privilege access, end-to-end encryption, and auditable configurations to support real-world deployments.
 
 ## Features
 
@@ -61,8 +61,7 @@ Option B: If you set `create_route53_zone = true`, you must configure your domai
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/gabrielPav/terraform-aws-secure-3tier.git
-cd terraform-aws-secure-3tier
+git clone https://github.com/gabrielPav/terraform-aws-secure-3tier.git && cd terraform-aws-secure-3tier
 ```
 
 ### Option A: Use Existing Route53 Zone (Recommended - Faster)
@@ -185,9 +184,9 @@ dig app.example.com
 
 ### Connect to EC2 Instances
 
-EC2 instances are deployed in private subnets without public IP addresses. This project uses **EC2 Instance Connect Endpoint (EICE)** to provide secure SSH access without requiring a bastion host, complex SSM configs, or VPN. No SSH port (22) is exposed to the Internet, SSH access is only allowed from the EIC Endpoint's security group, all connections are authenticated via IAM, connection logs are recorded in CloudTrail.
+EC2 instances are deployed in private subnets without public IP addresses. This project uses **EC2 Instance Connect Endpoint (EICE)** to provide secure SSH access without requiring a bastion host, complex SSM configs, or a VPN. No SSH port (22) is exposed to the Internet, SSH access is only allowed from the EIC Endpoint's security group, all connections are authenticated via IAM, connection logs are recorded in CloudTrail.
 
-You can also disable the EIC Endpoint if you don't need SSH access to instances and to achieve strict compliance.
+You can also disable the EIC Endpoint if you don't need SSH access to instances, helping to achieve strict compliance.
 
 ```hcl
 # In terraform.tfvars:
@@ -197,8 +196,7 @@ enable_eic_endpoint = false
 
 ### Destroy Infrastructure
 
-Important: If deletion_protection = true (default in production), you'll need to manually disable it on the ALB and RDS first,
-  or Terraform will fail to destroy.
+Important: If deletion_protection = true (default in production), you'll need to manually disable it on the ALB and RDS first or Terraform will fail to destroy.
 
 ```bash
 terraform destroy
@@ -218,7 +216,7 @@ terraform destroy
 | `enable_eic_endpoint` | Enable EC2 Instance Connect Endpoint for SSH access | `bool` | `true` | No |
 | `enable_s3_crr` | Enable S3 cross-region replication for the assets bucket | `bool` | `false` | No |
 | `s3_replica_region` | AWS region for the S3 replica bucket | `string` | `"us-west-2"` | No |
-| `enable_s3_object_lock` | Enable S3 Object Lock on the assets bucket | `bool` | `true` | No |
+| `enable_s3_object_lock` | Enable S3 Object Lock on the assets bucket | `bool` | `false` | No |
 
 See `variables.tf` for the complete list of available variables.
 
@@ -233,6 +231,7 @@ See `variables.tf` for the complete list of available variables.
 | `s3_bucket_name` | Name of S3 bucket used for assets storage |
 | `kms_key_id` | Customer-managed KMS key ID for encryption |
 | `eic_endpoint_id` | EC2 Instance Connect Endpoint ID for SSH access |
+| `cloudtrail_name` | Name of CloudTrail trail used for logging |
 
 ## Implemented Security Best Practices
 
@@ -259,7 +258,7 @@ See `variables.tf` for the complete list of available variables.
 - VPC Interface Endpoints for private service access (Secrets Manager and CloudWatch Logs)
 - NAT Gateways for secure outbound-only Internet access
 
-### Identity & Access Management (IAM)
+### Identity & Access Management (IAM):
 
 - Least-privilege IAM policies throughout all resources
 - IAM roles scoped to specific resources and actions
@@ -269,7 +268,7 @@ See `variables.tf` for the complete list of available variables.
 - EC2 Instance Connect Endpoint for SSH (IAM-authenticated, no bastion host)
 - Trust policies scoped to specific services and accounts
 
-### Instance Hardening
+### Instance Hardening:
 
 - IMDSv2 required on all EC2 instances (SSRF protection)
 - SSM agent enabled for patching and session access
@@ -277,7 +276,7 @@ See `variables.tf` for the complete list of available variables.
 - Termination protection enabled in production
 - No inbound SSH from the Internet (only via EICE/SSM)
 
-### Transport Security
+### Transport Security:
 
 - HTTPS enforced with TLS 1.2 minimum
 - HTTP automatically redirected to HTTPS
@@ -288,7 +287,7 @@ See `variables.tf` for the complete list of available variables.
 - TLS policies restricted to modern ciphers only
 - ALB drops invalid header fields
 
-### S3 Security
+### S3 Security:
 
 - Public access blocked on all buckets
 - Bucket versioning enabled
@@ -299,7 +298,7 @@ See `variables.tf` for the complete list of available variables.
 - S3 Object Lock available on assets and logs buckets
 - Cross-region replication available for assets bucket (disaster recovery)
 
-### Logging & Auditing
+### Logging & Auditing:
 
 - CloudTrail enabled (multi-region, all events)
 - CloudTrail log file validation enabled
@@ -308,9 +307,10 @@ See `variables.tf` for the complete list of available variables.
 - ALB access logs enabled
 - VPC Flow Logs to CloudWatch
 - CloudTrail integrated with CloudWatch alerts for anomalous behavior and IAM/VPC/S3/KMS changes
+- WAF logging enabled
 - Log integrity monitoring and access control enforced
 
-### Database Security
+### Database Security:
 
 - Multi-AZ deployment for high availability
 - Automated backups with configurable retention
@@ -323,18 +323,18 @@ See `variables.tf` for the complete list of available variables.
 - Enhanced Monitoring enabled
 - Performance Insights enabled for query-level diagnostics
 
-### Monitoring & Alerting
+### Monitoring & Alerting:
 
 - CloudWatch alarms for CPU, errors, and performance
 - RDS low storage alarm (< 5 GB threshold)
 - RDS event subscription for failover, failure, maintenance, and recovery notifications
-- Route table changes alarm (CIS AWS Foundations Benchmark 3.13)
+- Route table changes alarm (CIS-compliant)
 - CloudWatch dashboard for infrastructure visibility
 - Log retention policies enforced
 
-### Application Protection
+### Application Protection:
 
-- WAF enabled with OWASP managed rules 
+- WAF with rules for OWASP Top 10, SQLi, and XSS protection
 - CloudFront Origin Access Control for S3
 - CloudFront Origin Shield for reduced origin load and improved cache hit ratio
 - CloudFront origin failover group (ALB to S3 on 500-504 errors)

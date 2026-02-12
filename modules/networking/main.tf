@@ -232,34 +232,10 @@ resource "aws_vpc_endpoint" "s3" {
   })
 }
 
-resource "aws_vpc_endpoint_policy" "s3" {
-  count = var.enable_s3_endpoint ? 1 : 0
-
-  vpc_endpoint_id = aws_vpc_endpoint.s3[0].id
-
-  # Scope S3 access to project buckets only — don't let a compromised instance reach others
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "AllowS3AccessToProjectBuckets"
-        Effect    = "Allow"
-        Principal = "*"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-          "s3:ListBucket",
-          "s3:GetBucketLocation"
-        ]
-        Resource = [
-          "arn:aws:s3:::${var.project_name}-*",
-          "arn:aws:s3:::${var.project_name}-*/*"
-        ]
-      }
-    ]
-  })
-}
+  # No restrictive endpoint policy — the default allows all S3 access.
+  # Access control is enforced by IAM roles on the instances, not the endpoint.
+  # Keeping the gateway endpoint (vs. NAT) saves data transfer costs and
+  # avoids breaking AL2023 dnf repos and other AWS-hosted S3 resources.
 
 # Interface Endpoints Security Group
 resource "aws_security_group" "vpc_endpoints" {

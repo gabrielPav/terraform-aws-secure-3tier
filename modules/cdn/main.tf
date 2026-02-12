@@ -242,7 +242,7 @@ resource "aws_cloudfront_distribution" "main" {
   enabled             = true
   is_ipv6_enabled     = true
   comment             = "${var.project_name} ${var.environment} CloudFront Distribution"
-  default_root_object = "index.html"
+  default_root_object = "index.php"
   price_class         = var.price_class
   aliases             = var.domain_name != "" ? [var.domain_name] : []
 
@@ -289,7 +289,7 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   default_cache_behavior {
-    allowed_methods  = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    allowed_methods  = ["GET", "HEAD", "OPTIONS"]
     cached_methods   = ["GET", "HEAD"]
     target_origin_id = "${var.project_name}-${var.environment}-origin-group"
 

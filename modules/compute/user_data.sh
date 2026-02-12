@@ -1,66 +1,57 @@
 #!/bin/bash
 set -euo pipefail
 
-# Amazon Linux 2023 uses dnf package manager
-# Pin PHP version to 8.3 for deterministic builds
-# Security patches are applied via AMI updates and instance refresh
-dnf install -y httpd php8.3 php8.3-mysqlnd php8.3-xml
+# 1. Install Apache, PHP, and MySQL
+dnf install -y httpd php8.3 php8.3-mysqlnd
 
-# Install AWS SDK for PHP so the app can call AWS APIs natively
-# Download the Composer installer and verify its SHA-384 checksum against the official signature before executing it.
-EXPECTED_CHECKSUM="$(php -r "copy('https://composer.github.io/installer.sig', 'php://stdout');")"
-php -r "copy('https://getcomposer.org/installer', '/tmp/composer-setup.php');"
-ACTUAL_CHECKSUM="$(php -r "echo hash_file('SHA384', '/tmp/composer-setup.php');")"
-if [ "$EXPECTED_CHECKSUM" != "$ACTUAL_CHECKSUM" ]; then
-    echo 'ERROR: Composer installer checksum verification failed' >&2
-    rm -f /tmp/composer-setup.php
-    exit 1
-fi
-php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer
-rm -f /tmp/composer-setup.php
-
-# Run Composer as the apache user (least privilege) instead of root
-mkdir -p /opt/aws-sdk
-chown apache:apache /opt/aws-sdk
-runuser -u apache -- composer require aws/aws-sdk-php --working-dir=/opt/aws-sdk --no-interaction --no-dev
-
+# 2. Get metadata for AWS region
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
 
+# 3. Create the app configuration file
+cat > /etc/app-config.php <<EOF
+<?php
+return [
+    'db_host'       => '${rds_endpoint}',
+    'db_port'       => '${rds_port}',
+    'db_name'       => '${db_name}',
+    'db_secret_arn' => '${db_secret_arn}',
+    'aws_region'    => '$AWS_REGION',
+];
+EOF
+chown root:apache /etc/app-config.php
+chmod 0640 /etc/app-config.php
+
+# 4. Create index.php 
 cat > /var/www/html/index.php <<'PHPEOF'
 <?php
-require '/opt/aws-sdk/vendor/autoload.php';
-
-use Aws\SecretsManager\SecretsManagerClient;
-
 $config = require '/etc/app-config.php';
 
-$credentials = null;
-try {
-    $client = new SecretsManagerClient([
-        'region'  => $config['aws_region'],
-        'version' => 'latest',
-    ]);
-    $result = $client->getSecretValue([
-        'SecretId' => $config['db_secret_arn'],
-    ]);
-    $credentials = json_decode($result['SecretString'], true);
-} catch (Exception $e) {
-    $credentials = null;
-}
+// Fetch credentials via AWS CLI
+$command = sprintf("aws secretsmanager get-secret-value --secret-id %s --region %s --query SecretString --output text",escapeshellarg($config['db_secret_arn']),escapeshellarg($config['aws_region']));
+
+$secret_json = shell_exec($command);
+$credentials = json_decode($secret_json, true);
 
 $db_connected = false;
 $db_error = '';
 $secrets_ok = !empty($credentials);
+
 if ($secrets_ok) {
     mysqli_report(MYSQLI_REPORT_OFF);
     $conn = mysqli_init();
-    $conn->options(MYSQLI_SET_CHARSET_NAME, 'utf8mb4');
-    $conn->ssl_set(NULL, NULL, '/etc/pki/tls/certs/ca-bundle.crt', NULL, NULL);
-    @$conn->real_connect($config['db_host'], $credentials['username'], $credentials['password'], $config['db_name'], (int)$config['db_port'], NULL, MYSQLI_CLIENT_SSL);
-    if ($conn->connect_error) {
-        error_log('DB connection failed: ' . $conn->connect_error);
-        $db_error = 'Database connection failed';
+    // Connect using the fetched credentials and SSH flag
+    $status = @$conn->real_connect(
+        $config['db_host'], 
+        $credentials['username'], 
+        $credentials['password'], 
+        $config['db_name'], 
+        (int)$config['db_port'],
+        NULL,
+        MYSQLI_CLIENT_SSL
+    );
+    if (!$status) {
+        $db_error = mysqli_connect_error();
     } else {
         $db_connected = true;
         $conn->close();
@@ -70,7 +61,7 @@ if ($secrets_ok) {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AWS 3-Tier Architecture Demo</title>
+    <title>AWS 3-Tier Architecture Status</title>
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: linear-gradient(135deg, #232f3e 0%, #1a242f 100%); }
         .card { padding: 40px 50px; background: #fff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); text-align: center; max-width: 500px; }
@@ -96,7 +87,7 @@ if ($secrets_ok) {
                 <div class="icon ok">&#10003;</div>
                 <div>
                     <div class="label">Application Layer (EC2)</div>
-                    <div class="desc">Web server running in private subnet</div>
+                    <div class="desc">Web servers running in private subnets</div>
                 </div>
             </div>
             <div class="check-item">
@@ -116,7 +107,7 @@ if ($secrets_ok) {
             <div class="check-item">
                 <div class="icon <?= $db_connected ? 'ok' : 'fail' ?>"><?= $db_connected ? '&#10003;' : '&#10007;' ?></div>
                 <div>
-                    <div class="label">Database Layer (RDS MySQL)</div>
+                    <div class="label">Database Layer (RDS)</div>
                     <div class="desc"><?= $db_connected ? 'EC2 to RDS connectivity verified' : htmlspecialchars($db_error ?: 'Connection failed') ?></div>
                 </div>
             </div>
@@ -127,18 +118,12 @@ if ($secrets_ok) {
 </html>
 PHPEOF
 
-cat > /etc/app-config.php <<EOF
-<?php return [
-    'db_host'      => '${rds_endpoint}',
-    'db_port'      => '${rds_port}',
-    'db_name'      => '${db_name}',
-    'db_secret_arn' => '${db_secret_arn}',
-    'aws_region'   => '$AWS_REGION',
-];
-EOF
-chmod 0400 /etc/app-config.php
-chown apache:apache /etc/app-config.php
-
+# 5. Set permissions
 chown apache:apache /var/www/html/index.php
-systemctl enable httpd
-systemctl start httpd
+chmod 0644 /var/www/html/index.php
+
+# 6. Allow Apache to network out
+setsebool -P httpd_can_network_connect 1 || true
+
+# 7. Start and enable
+systemctl enable --now httpd

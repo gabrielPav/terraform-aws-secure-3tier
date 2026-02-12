@@ -76,9 +76,9 @@ variable "enable_eic_endpoint" {
 # ============================================================================
 
 variable "enable_s3_object_lock" {
-  description = "Enable S3 Object Lock (Governance Mode) on the assets bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
+  description = "Enable S3 Object Lock (Governance Mode) on the assets bucket. Recommended for compliance workloads."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "s3_object_lock_retention_days" {
@@ -206,7 +206,7 @@ variable "rds_engine_version" {
 variable "rds_database_name" {
   description = "Name of the RDS database"
   type        = string
-  default     = "appdb"
+  default     = "webappdb"
 }
 
 variable "rds_username" {
