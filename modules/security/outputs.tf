@@ -1,11 +1,45 @@
-output "kms_key_id" {
-  description = "KMS key ID"
-  value       = aws_kms_key.main.key_id
+# Data Layer KMS Key (RDS, Secrets Manager)
+output "kms_data_key_id" {
+  description = "KMS key ID for the data layer (RDS, Secrets Manager)"
+  value       = aws_kms_key.data.key_id
 }
 
-output "kms_key_arn" {
-  description = "KMS key ARN"
-  value       = aws_kms_key.main.arn
+output "kms_data_key_arn" {
+  description = "KMS key ARN for the data layer (RDS, Secrets Manager)"
+  value       = aws_kms_key.data.arn
+}
+
+# Compute Layer KMS Key (EBS, Auto Scaling)
+output "kms_compute_key_id" {
+  description = "KMS key ID for the compute layer (EBS, Auto Scaling)"
+  value       = aws_kms_key.compute.key_id
+}
+
+output "kms_compute_key_arn" {
+  description = "KMS key ARN for the compute layer (EBS, Auto Scaling)"
+  value       = aws_kms_key.compute.arn
+}
+
+# Storage Layer KMS Key (S3, CloudFront)
+output "kms_storage_key_id" {
+  description = "KMS key ID for the storage layer (S3, CloudFront)"
+  value       = aws_kms_key.storage.key_id
+}
+
+output "kms_storage_key_arn" {
+  description = "KMS key ARN for the storage layer (S3, CloudFront)"
+  value       = aws_kms_key.storage.arn
+}
+
+# Observability Layer KMS Key (CloudTrail, CloudWatch, SNS)
+output "kms_observability_key_id" {
+  description = "KMS key ID for the observability layer (CloudTrail, CloudWatch, SNS)"
+  value       = aws_kms_key.observability.key_id
+}
+
+output "kms_observability_key_arn" {
+  description = "KMS key ARN for the observability layer (CloudTrail, CloudWatch, SNS)"
+  value       = aws_kms_key.observability.arn
 }
 
 output "ec2_instance_profile_name" {
@@ -29,6 +63,6 @@ output "cloudtrail_arn" {
 }
 
 output "us_east_1_kms_key_arn" {
-  description = "KMS key ARN for us-east-1 resources (WAF logs, Route53 query logs). Returns the main key when deployed to us-east-1, otherwise a dedicated us-east-1 key."
-  value       = var.aws_region == "us-east-1" ? aws_kms_key.main.arn : aws_kms_key.us_east_1[0].arn
+  description = "KMS key ARN for us-east-1 resources (WAF logs, Route53 query logs). Returns the observability key when deployed to us-east-1, otherwise a dedicated us-east-1 key."
+  value       = var.aws_region == "us-east-1" ? aws_kms_key.observability.arn : aws_kms_key.us_east_1[0].arn
 }

@@ -17,7 +17,7 @@ While many projects implement a standard 3-tier architecture, this one is design
 - **Load Balancing**: Application Load Balancer (ALB) with HTTPS enforced and HTTP/2 support.
 - **SSL/TLS**: ACM certificate always provisioned and validated via Route53 DNS (HTTPS is mandatory).
 - **CDN**: CloudFront distribution with Origin Shield, ALB origin (default) with origin failover, and S3 origin for static assets.
-- **Security**: IAM roles, customer-managed KMS keys, WAF (Log4j, XSS, and SQLi protection), data perimeters, and hardened security groups.
+- **Security**: IAM roles, layer-segregated KMS keys (data, compute, storage, observability), WAF (Log4j, XSS, and SQLi protection), data perimeters, and hardened security groups.
 - **Monitoring and Logging**: CloudTrail and CloudFront logging, enhanced monitoring, CloudWatch alerts and dashboards, and RDS event subscriptions.
 
 ## Prerequisites
@@ -230,7 +230,10 @@ See `variables.tf` for the complete list of available variables.
 | `vpc_id` | The ID of your VPC network |
 | `alb_dns_name` | The DNS name of the Application Load Balancer |
 | `s3_bucket_name` | Name of S3 bucket used for assets storage |
-| `kms_key_id` | Customer-managed KMS key ID for encryption |
+| `kms_data_key_id` | KMS key ID for the data layer (RDS, Secrets Manager) |
+| `kms_compute_key_id` | KMS key ID for the compute layer (EBS, Auto Scaling) |
+| `kms_storage_key_id` | KMS key ID for the storage layer (S3, CloudFront) |
+| `kms_observability_key_id` | KMS key ID for the observability layer (CloudTrail, CloudWatch, SNS) |
 | `eic_endpoint_id` | EC2 Instance Connect Endpoint ID for SSH access |
 | `cloudtrail_name` | Name of CloudTrail trail used for logging |
 
@@ -238,8 +241,8 @@ See `variables.tf` for the complete list of available variables.
 
 ### Encryption:
 
-- All data encrypted at rest using customer-managed KMS keys
-- Automatic KMS key rotation enforced and monitored
+- All data encrypted at rest using layer-segregated customer-managed KMS keys (data, compute, storage, observability)
+- Automatic KMS key rotation every 90 days
 - EBS volumes encrypted with KMS
 - RDS storage encryption enabled
 - S3 server-side encryption (SSE-KMS)

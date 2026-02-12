@@ -81,7 +81,7 @@ variable "ebs_volume_type" {
 }
 
 variable "kms_key_arn" {
-  description = "KMS key ARN for EBS encryption"
+  description = "KMS key ARN for EBS encryption (compute layer)"
   type        = string
 }
 

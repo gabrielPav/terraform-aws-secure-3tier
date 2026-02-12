@@ -56,7 +56,7 @@ variable "log_retention_days" {
 }
 
 variable "kms_key_arn" {
-  description = "KMS key ARN for CloudWatch log group encryption"
+  description = "KMS key ARN for SNS encryption (observability layer)"
   type        = string
   default     = null
 }

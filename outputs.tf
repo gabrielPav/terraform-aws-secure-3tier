@@ -1,8 +1,3 @@
-# ============================================================================
-# Production Infrastructure - Outputs
-# ============================================================================
-
-# Networking Outputs
 output "vpc_id" {
   description = "VPC ID"
   value       = module.networking.vpc_id
@@ -18,7 +13,6 @@ output "private_subnet_ids" {
   value       = module.networking.private_subnet_ids
 }
 
-# Compute Outputs
 output "asg_name" {
   description = "Auto Scaling Group name"
   value       = module.compute.asg_name
@@ -28,10 +22,6 @@ output "ec2_security_group_id" {
   description = "EC2 security group ID"
   value       = module.compute.ec2_security_group_id
 }
-
-# ============================================================================
-# Load Balancer Outputs
-# ============================================================================
 
 output "alb_dns_name" {
   description = <<-EOT
@@ -93,7 +83,6 @@ output "route53_zone_created" {
   value       = module.load_balancer.route53_zone_created
 }
 
-# CDN Outputs
 output "cloudfront_distribution_id" {
   description = "CloudFront distribution ID"
   value       = module.cdn.cloudfront_distribution_id
@@ -129,30 +118,41 @@ output "cloudfront_certificate_created" {
   value       = module.cdn.cloudfront_certificate_created
 }
 
-# Database Outputs
 output "rds_port" {
   description = "RDS port"
   value       = module.database.rds_port
 }
 
-# Storage Outputs
 output "s3_bucket_name" {
   description = "S3 bucket name"
   value       = module.storage.s3_bucket_name
 }
 
-# Security Outputs
 output "cloudtrail_name" {
   description = "CloudTrail name"
   value       = module.security.cloudtrail_name
 }
 
-output "kms_key_id" {
-  description = "KMS key ID"
-  value       = module.security.kms_key_id
+output "kms_data_key_id" {
+  description = "KMS key ID for the data layer (RDS, Secrets Manager)"
+  value       = module.security.kms_data_key_id
 }
 
-# EC2 Instance Connect Endpoint
+output "kms_compute_key_id" {
+  description = "KMS key ID for the compute layer (EBS, Auto Scaling)"
+  value       = module.security.kms_compute_key_id
+}
+
+output "kms_storage_key_id" {
+  description = "KMS key ID for the storage layer (S3, CloudFront)"
+  value       = module.security.kms_storage_key_id
+}
+
+output "kms_observability_key_id" {
+  description = "KMS key ID for the observability layer (CloudTrail, CloudWatch, SNS)"
+  value       = module.security.kms_observability_key_id
+}
+
 output "eic_endpoint_id" {
   description = <<-EOT
     EC2 Instance Connect Endpoint ID for SSH access to private instances.

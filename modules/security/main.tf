@@ -1,6 +1,4 @@
-# ============================================================================
-# Security Module - IAM, KMS, CloudTrail
-# ============================================================================
+# Security — IAM, KMS, CloudTrail
 
 terraform {
   required_providers {
@@ -19,21 +17,21 @@ locals {
   is_us_east_1 = var.aws_region == "us-east-1"
 }
 
-# ============================================================================
-# KMS Key
-# ============================================================================
-
 # In production environments add lifecycle { prevent_destroy = true }
-resource "aws_kms_key" "main" {
-  description             = "KMS key for ${var.project_name} encryption"
+
+# KMS — Data Layer (RDS, Secrets Manager)
+
+resource "aws_kms_key" "data" {
+  description             = "KMS key for ${var.project_name} data layer - RDS and Secrets Manager"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  rotation_period_in_days = 90
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "Enable IAM User Permissions"
+        Sid    = "EnableIAMUserPermissions"
         Effect = "Allow"
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
@@ -42,14 +40,10 @@ resource "aws_kms_key" "main" {
         Resource = "*"
       },
       {
-        Sid    = "Allow AWS services to use the key"
+        Sid    = "AllowRDSToUseTheKey"
         Effect = "Allow"
         Principal = {
-          Service = [
-            "ec2.amazonaws.com",
-            "rds.amazonaws.com",
-            "s3.amazonaws.com"
-          ]
+          Service = "rds.amazonaws.com"
         }
         Action = [
           "kms:Encrypt",
@@ -59,9 +53,67 @@ resource "aws_kms_key" "main" {
           "kms:DescribeKey"
         ]
         Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-kms-data"
+  })
+}
+
+resource "aws_kms_alias" "data" {
+  name          = "alias/${var.project_name}-${var.environment}-data"
+  target_key_id = aws_kms_key.data.key_id
+}
+
+# KMS — Compute Layer (EBS, Auto Scaling)
+
+resource "aws_kms_key" "compute" {
+  description             = "KMS key for ${var.project_name} compute layer - EBS and Auto Scaling"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableIAMUserPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
       },
       {
-        Sid    = "Allow Auto Scaling service-linked role to use the key"
+        Sid    = "AllowEC2ToUseTheKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "AllowAutoScalingToUseTheKey"
         Effect = "Allow"
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
@@ -76,7 +128,7 @@ resource "aws_kms_key" "main" {
         Resource = "*"
       },
       {
-        Sid    = "Allow Auto Scaling service-linked role to create grants"
+        Sid    = "AllowAutoScalingToCreateGrants"
         Effect = "Allow"
         Principal = {
           AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
@@ -88,9 +140,133 @@ resource "aws_kms_key" "main" {
             "kms:GrantIsForAWSResource" = "true"
           }
         }
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-kms-compute"
+  })
+}
+
+resource "aws_kms_alias" "compute" {
+  name          = "alias/${var.project_name}-${var.environment}-compute"
+  target_key_id = aws_kms_key.compute.key_id
+}
+
+# KMS — Storage Layer (S3, CloudFront, ELB Log Delivery)
+
+resource "aws_kms_key" "storage" {
+  description             = "KMS key for ${var.project_name} storage layer - S3 and CloudFront"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableIAMUserPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
       },
       {
-        Sid    = "Allow CloudWatch Logs to use the key"
+        Sid    = "AllowS3ToUseTheKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        # CloudFront OAC needs to decrypt S3 objects encrypted with this KMS key
+        Sid    = "AllowCloudFrontToDecryptS3Objects"
+        Effect = "Allow"
+        Principal = {
+          Service = "cloudfront.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey*"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "AllowELBLogDeliveryToUseTheKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "delivery.logs.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
+
+  tags = merge(var.tags, {
+    Name = "${var.project_name}-${var.environment}-kms-storage"
+  })
+}
+
+resource "aws_kms_alias" "storage" {
+  name          = "alias/${var.project_name}-${var.environment}-storage"
+  target_key_id = aws_kms_key.storage.key_id
+}
+
+# KMS — Observability Layer (CloudTrail, CloudWatch, SNS)
+
+resource "aws_kms_key" "observability" {
+  description             = "KMS key for ${var.project_name} observability layer - CloudTrail, CloudWatch, SNS"
+  deletion_window_in_days = 30
+  enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableIAMUserPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowCloudWatchLogsToUseTheKey"
         Effect = "Allow"
         Principal = {
           Service = "logs.${data.aws_region.current.name}.amazonaws.com"
@@ -110,7 +286,7 @@ resource "aws_kms_key" "main" {
         }
       },
       {
-        Sid    = "Allow CloudTrail to use the key"
+        Sid    = "AllowCloudTrailToUseTheKey"
         Effect = "Allow"
         Principal = {
           Service = "cloudtrail.amazonaws.com"
@@ -130,49 +306,7 @@ resource "aws_kms_key" "main" {
         }
       },
       {
-        Sid    = "Allow ELB Log Delivery to use the key"
-        Effect = "Allow"
-        Principal = {
-          Service = "delivery.logs.amazonaws.com"
-        }
-        Action = [
-          "kms:Encrypt",
-          "kms:Decrypt",
-          "kms:ReEncrypt*",
-          "kms:GenerateDataKey*",
-          "kms:DescribeKey"
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
-          }
-        }
-      },
-      {
-        # CloudFront OAC needs to decrypt S3 objects encrypted with this KMS key.
-        # Scoped to this account only (not a specific distribution ARN) to avoid
-        # a circular dependency between the KMS key and CloudFront distribution.
-        # The S3 bucket policy provides the second layer of defense by restricting
-        # access to our specific distribution via AWS:SourceArn.
-        Sid    = "Allow CloudFront to decrypt S3 objects"
-        Effect = "Allow"
-        Principal = {
-          Service = "cloudfront.amazonaws.com"
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey*"
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
-          }
-        }
-      },
-      {
-        Sid    = "Allow SNS to use the key"
+        Sid    = "AllowSNSToUseTheKey"
         Effect = "Allow"
         Principal = {
           Service = "sns.amazonaws.com"
@@ -187,34 +321,49 @@ resource "aws_kms_key" "main" {
             "aws:SourceAccount" = data.aws_caller_identity.current.account_id
           }
         }
+      },
+      {
+        # CloudTrail S3 bucket uses SSE-KMS with this key.
+        # S3 needs access to generate data keys for bucket-key encryption.
+        Sid    = "AllowS3ForCloudTrailBucketEncryption"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
       }
     ]
   })
 
   tags = merge(var.tags, {
-    Name = "${var.project_name}-${var.environment}-kms-key"
+    Name = "${var.project_name}-${var.environment}-kms-observability"
   })
-
 }
 
-resource "aws_kms_alias" "main" {
-  name          = "alias/${var.project_name}-${var.environment}"
-  target_key_id = aws_kms_key.main.key_id
+resource "aws_kms_alias" "observability" {
+  name          = "alias/${var.project_name}-${var.environment}-observability"
+  target_key_id = aws_kms_key.observability.key_id
 }
 
-# ============================================================================
-# Account-Level EBS Encryption
-# ============================================================================
-# The launch template already encrypts its own volumes, but this catches
-# any EBS volumes created outside of Terraform (e.g. console, CLI, other IaC).
+# Account-level EBS default encryption — catches volumes created outside Terraform
 
 resource "aws_ebs_encryption_by_default" "this" {
   enabled = true
 }
 
-# ============================================================================
-# IAM Role for EC2 Instances
-# ============================================================================
+# IAM — EC2 Role
 
 resource "aws_iam_role" "ec2" {
   name_prefix = "${var.project_name}-${var.environment}-ec2-role-"
@@ -222,6 +371,7 @@ resource "aws_iam_role" "ec2" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowEC2AssumeRole"
       Effect = "Allow"
       Principal = {
         Service = "ec2.amazonaws.com"
@@ -239,20 +389,29 @@ resource "aws_iam_role_policy" "ec2_s3" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Sid    = "AllowS3Access"
-      Effect = "Allow"
-      Action = [
-        "s3:GetObject",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket"
-      ]
-      Resource = [
-        "arn:aws:s3:::${var.project_name}-${var.environment}-*",
-        "arn:aws:s3:::${var.project_name}-${var.environment}-*/*"
-      ]
-    }]
+    Statement = [
+      {
+        Sid    = "ListAssetsBucket"
+        Effect = "Allow"
+        Action = [
+          "s3:ListBucket"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.project_name}-${var.environment}-assets-${data.aws_caller_identity.current.account_id}"
+        ]
+      },
+      {
+        Sid    = "ReadWriteAssets"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.project_name}-${var.environment}-assets-${data.aws_caller_identity.current.account_id}/*"
+        ]
+      }
+    ]
   })
 }
 
@@ -278,7 +437,7 @@ resource "aws_iam_role_policy" "ec2_secrets_manager" {
         Action = [
           "kms:Decrypt"
         ]
-        Resource = aws_kms_key.main.arn
+        Resource = aws_kms_key.data.arn
         Condition = {
           StringEquals = {
             "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
@@ -296,9 +455,7 @@ resource "aws_iam_instance_profile" "ec2" {
   tags = var.tags
 }
 
-# ============================================================================
 # CloudTrail
-# ============================================================================
 
 resource "aws_s3_bucket" "cloudtrail" {
   count               = var.enable_cloudtrail ? 1 : 0
@@ -352,7 +509,7 @@ resource "aws_s3_bucket_object_lock_configuration" "cloudtrail" {
   depends_on = [aws_s3_bucket_versioning.cloudtrail]
 }
 
-# CloudTrail bucket - S3 server access logging configuration
+# Access logging for CloudTrail bucket
 resource "aws_s3_bucket_logging" "cloudtrail_logging" {
   count  = var.enable_cloudtrail && var.enable_s3_access_logging ? 1 : 0
   bucket = aws_s3_bucket.cloudtrail[0].id
@@ -368,7 +525,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "cloudtrail" {
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.main.arn
+      kms_master_key_id = aws_kms_key.observability.arn
     }
     bucket_key_enabled = true
   }
@@ -410,7 +567,7 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
         }
       },
       {
-        Sid       = "DenyInsecureTransport"
+        Sid       = "EnforceTLS"
         Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"
@@ -426,7 +583,6 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
   })
 }
 
-# Lifecycle configuration for CloudTrail bucket
 resource "aws_s3_bucket_lifecycle_configuration" "cloudtrail" {
   count  = var.enable_cloudtrail ? 1 : 0
   bucket = aws_s3_bucket.cloudtrail[0].id
@@ -482,7 +638,7 @@ resource "aws_cloudwatch_log_group" "cloudtrail" {
   count             = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
   name              = "/aws/cloudtrail/${var.cloudtrail_name}"
   retention_in_days = var.log_retention_days
-  kms_key_id        = aws_kms_key.main.arn
+  kms_key_id        = aws_kms_key.observability.arn
 
   tags = var.tags
 }
@@ -494,6 +650,7 @@ resource "aws_iam_role" "cloudtrail_cloudwatch" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowCloudTrailAssumeRole"
       Effect = "Allow"
       Principal = {
         Service = "cloudtrail.amazonaws.com"
@@ -513,6 +670,7 @@ resource "aws_iam_role_policy" "cloudtrail_cloudwatch" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowCloudTrailWriteToCloudWatch"
       Effect = "Allow"
       Action = [
         "logs:CreateLogStream",
@@ -531,7 +689,7 @@ resource "aws_cloudtrail" "main" {
   is_multi_region_trail         = true
   enable_logging                = true
   enable_log_file_validation    = true
-  kms_key_id                    = aws_kms_key.main.arn
+  kms_key_id                    = aws_kms_key.observability.arn
 
   cloud_watch_logs_group_arn = var.enable_cloudwatch ? "${aws_cloudwatch_log_group.cloudtrail[0].arn}:*" : null
   cloud_watch_logs_role_arn  = var.enable_cloudwatch ? aws_iam_role.cloudtrail_cloudwatch[0].arn : null
@@ -558,15 +716,13 @@ resource "aws_cloudtrail" "main" {
   tags = var.tags
 }
 
-# ============================================================================
-# SNS Topic for CloudTrail Notifications and Security Alarms
-# ============================================================================
+# SNS — CloudTrail notifications and security alarms
 
 resource "aws_sns_topic" "cloudtrail_notifications" {
   count = var.enable_cloudtrail && var.enable_cloudtrail_sns_notifications ? 1 : 0
 
   name              = "${var.project_name}-${var.environment}-cloudtrail-notifications"
-  kms_master_key_id = aws_kms_key.main.id
+  kms_master_key_id = aws_kms_key.observability.id
 
   tags = var.tags
 
@@ -626,13 +782,7 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alarm_notification_email
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for IAM Policy Changes
-# ============================================================================
-# Detects unauthorized or suspicious IAM policy modifications including:
-# - Policy creation, deletion, and version changes
-# - Policy attachments and detachments to users, roles, and groups
-# ============================================================================
+# CIS alarm — IAM policy changes
 
 resource "aws_cloudwatch_log_metric_filter" "iam_policy_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -668,12 +818,7 @@ resource "aws_cloudwatch_metric_alarm" "iam_policy_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for Unauthorized API Calls
-# ============================================================================
-# Detects API calls that were rejected due to insufficient permissions.
-# CIS AWS Foundations Benchmark 3.1
-# ============================================================================
+# CIS 3.1 — Unauthorized API calls
 
 resource "aws_cloudwatch_log_metric_filter" "unauthorized_api_calls" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -709,13 +854,7 @@ resource "aws_cloudwatch_metric_alarm" "unauthorized_api_calls" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for CloudTrail Configuration Changes
-# ============================================================================
-# Detects changes to CloudTrail configuration such as stopping logging,
-# deleting trails, or updating trail settings.
-# CIS AWS Foundations Benchmark 3.5
-# ============================================================================
+# CIS 3.5 — CloudTrail configuration changes
 
 resource "aws_cloudwatch_log_metric_filter" "cloudtrail_config_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -751,13 +890,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudtrail_config_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for S3 Bucket Policy Changes
-# ============================================================================
-# Detects changes to S3 bucket policies, ACLs, CORS, lifecycle, and
-# replication configurations.
-# CIS AWS Foundations Benchmark 3.8
-# ============================================================================
+# CIS 3.8 — S3 bucket policy changes
 
 resource "aws_cloudwatch_log_metric_filter" "s3_bucket_policy_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -793,13 +926,7 @@ resource "aws_cloudwatch_metric_alarm" "s3_bucket_policy_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for AWS Config Changes
-# ============================================================================
-# Detects changes to AWS Config service including stopping/deleting the
-# configuration recorder or delivery channel.
-# CIS AWS Foundations Benchmark 3.9
-# ============================================================================
+# CIS 3.9 — AWS Config changes
 
 resource "aws_cloudwatch_log_metric_filter" "aws_config_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -835,13 +962,7 @@ resource "aws_cloudwatch_metric_alarm" "aws_config_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for Security Group Changes
-# ============================================================================
-# Detects creation, deletion, and modification of security groups and
-# their ingress/egress rules.
-# CIS AWS Foundations Benchmark 3.10
-# ============================================================================
+# CIS 3.10 — Security group changes
 
 resource "aws_cloudwatch_log_metric_filter" "security_group_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -877,12 +998,7 @@ resource "aws_cloudwatch_metric_alarm" "security_group_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for Route Table Changes
-# ============================================================================
-# Detects creation, deletion, and modification of route tables and routes.
-# CIS AWS Foundations Benchmark 3.13
-# ============================================================================
+# CIS 3.13 — Route table changes
 
 resource "aws_cloudwatch_log_metric_filter" "route_table_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -918,13 +1034,7 @@ resource "aws_cloudwatch_metric_alarm" "route_table_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for VPC Changes
-# ============================================================================
-# Detects changes to VPC resources including VPCs, subnets, route tables,
-# internet gateways, and peering connections.
-# CIS AWS Foundations Benchmark 3.14
-# ============================================================================
+# CIS 3.14 — VPC changes
 
 resource "aws_cloudwatch_log_metric_filter" "vpc_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -960,13 +1070,7 @@ resource "aws_cloudwatch_metric_alarm" "vpc_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# CloudWatch Metric Filter and Alarm for KMS CMK Disable or Scheduled Deletion
-# ============================================================================
-# Detects when KMS customer-managed keys are disabled or scheduled for
-# deletion, which could lead to data loss.
-# CIS AWS Foundations Benchmark 3.7
-# ============================================================================
+# CIS 3.7 — KMS key disable or deletion
 
 resource "aws_cloudwatch_log_metric_filter" "kms_cmk_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -1002,13 +1106,8 @@ resource "aws_cloudwatch_metric_alarm" "kms_cmk_changes" {
   tags = var.tags
 }
 
-# ============================================================================
-# KMS Key for us-east-1 Resources (WAF Logs, Route53 Query Logs)
-# ============================================================================
-# CloudFront WAF and Route53 query logging require CloudWatch Log Groups in
-# us-east-1. When the primary region is already us-east-1, the main KMS key
-# is reused. Otherwise, a dedicated key is created in us-east-1.
-# ============================================================================
+# KMS — us-east-1 (WAF logs, Route53 query logs)
+# Only created when primary region is not us-east-1; otherwise the observability key is reused.
 
 resource "aws_kms_key" "us_east_1" {
   count    = local.is_us_east_1 ? 0 : 1
@@ -1017,6 +1116,7 @@ resource "aws_kms_key" "us_east_1" {
   description             = "KMS key for ${var.project_name} us-east-1 resources (WAF logs, Route53 query logs)"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  rotation_period_in_days = 90
 
   policy = jsonencode({
     Version = "2012-10-17"

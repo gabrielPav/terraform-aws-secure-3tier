@@ -9,6 +9,7 @@ terraform {
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 locals {
   create_acm_certificate = var.domain_name != ""
@@ -104,8 +105,6 @@ resource "aws_s3_bucket_public_access_block" "alb_logs" {
   restrict_public_buckets = true
 }
 
-data "aws_elb_service_account" "main" {}
-
 resource "aws_s3_bucket_policy" "alb_logs" {
   count  = var.enable_access_logs ? 1 : 0
   bucket = aws_s3_bucket.alb_logs[0].id
@@ -114,23 +113,20 @@ resource "aws_s3_bucket_policy" "alb_logs" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Principal = {
-          AWS = data.aws_elb_service_account.main.arn
-        }
-        Action   = "s3:PutObject"
-        Resource = "${aws_s3_bucket.alb_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
-      },
-      {
+        Sid    = "AllowELBServicePrincipal"
         Effect = "Allow"
         Principal = {
           Service = "logdelivery.elasticloadbalancing.amazonaws.com"
         }
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.alb_logs[0].arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+        Condition = {
+          StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
+          ArnLike      = { "aws:SourceArn" = "arn:aws:elasticloadbalancing:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:loadbalancer/*" }
+        }
       },
       {
-        Sid       = "DenyInsecureTransport"
+        Sid       = "EnforceTLS"
         Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"

@@ -20,7 +20,7 @@ variable "enable_s3_versioning" {
 }
 
 variable "kms_key_id" {
-  description = "KMS key ID for encryption"
+  description = "KMS key ID for S3 bucket encryption (storage layer)"
   type        = string
   default     = null
 }
@@ -72,7 +72,7 @@ variable "enable_s3_crr" {
 }
 
 variable "kms_key_arn" {
-  description = "KMS key ARN for the source bucket. Used in the replication IAM policy to allow decryption of source objects."
+  description = "KMS key ARN for the source bucket (storage layer). Used in the replication IAM policy to allow decryption of source objects."
   type        = string
   default     = null
 }

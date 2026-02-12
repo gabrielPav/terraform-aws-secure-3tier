@@ -59,6 +59,7 @@ resource "aws_iam_role" "rds_enhanced_monitoring" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowRDSMonitoringAssumeRole"
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {

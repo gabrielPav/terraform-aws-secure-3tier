@@ -165,6 +165,7 @@ resource "aws_iam_role" "flow_log" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowVPCFlowLogsAssumeRole"
       Effect = "Allow"
       Principal = {
         Service = "vpc-flow-logs.amazonaws.com"
@@ -186,6 +187,7 @@ resource "aws_iam_role_policy" "flow_log" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "AllowFlowLogsCreateLogGroup"
         Effect = "Allow"
         Action = [
           "logs:CreateLogGroup",
@@ -194,6 +196,7 @@ resource "aws_iam_role_policy" "flow_log" {
         Resource = aws_cloudwatch_log_group.flow_logs[0].arn
       },
       {
+        Sid    = "AllowFlowLogsWriteToCloudWatch"
         Effect = "Allow"
         Action = [
           "logs:CreateLogStream",
@@ -225,17 +228,56 @@ resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = concat([aws_route_table.public.id], aws_route_table.private[*].id)
+  # Attached to all route tables to enforce the S3 endpoint policy as a VPC-wide data perimeter
+  route_table_ids = concat([aws_route_table.public.id], aws_route_table.private[*].id)
 
   tags = merge(var.tags, {
     Name = "${var.vpc_name}-s3-endpoint"
   })
 }
 
-  # No restrictive endpoint policy — the default allows all S3 access.
-  # Access control is enforced by IAM roles on the instances, not the endpoint.
-  # Keeping the gateway endpoint (vs. NAT) saves data transfer costs and
-  # avoids breaking AL2023 dnf repos and other AWS-hosted S3 resources.
+resource "aws_vpc_endpoint_policy" "s3" {
+  count = var.enable_s3_endpoint ? 1 : 0
+
+  vpc_endpoint_id = aws_vpc_endpoint.s3[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowProjectBuckets"
+        Effect    = "Allow"
+        Principal = "*"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.project_name}-*",
+          "arn:aws:s3:::${var.project_name}-*/*"
+        ]
+      },
+      {
+        Sid       = "AllowAmazonLinuxReposAndSSM"
+        Effect    = "Allow"
+        Principal = "*"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket",
+          "s3:GetBucketLocation"
+        ]
+        Resource = "*"
+        Condition = {
+          StringNotEquals = {
+            "aws:ResourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
+}
 
 # Interface Endpoints Security Group
 resource "aws_security_group" "vpc_endpoints" {

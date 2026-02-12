@@ -62,7 +62,7 @@ variable "flow_log_retention_days" {
 }
 
 variable "kms_key_arn" {
-  description = "KMS key ARN for CloudWatch log group encryption"
+  description = "KMS key ARN for CloudWatch log group encryption (observability layer)"
   type        = string
   default     = null
 }

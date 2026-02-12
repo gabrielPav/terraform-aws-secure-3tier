@@ -84,7 +84,7 @@ variable "backup_retention_period" {
 }
 
 variable "kms_key_id" {
-  description = "KMS key ID"
+  description = "KMS key ARN for RDS encryption (data layer)"
   type        = string
   default     = null
 }

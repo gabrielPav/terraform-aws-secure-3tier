@@ -1,7 +1,3 @@
-# ============================================================================
-# Production Infrastructure - Variables
-# ============================================================================
-
 variable "aws_region" {
   description = "AWS region for resources"
   type        = string
@@ -30,9 +26,7 @@ variable "common_tags" {
   default     = {}
 }
 
-# ============================================================================
-# Networking Variables
-# ============================================================================
+# Networking
 
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
@@ -71,9 +65,7 @@ variable "enable_eic_endpoint" {
   default     = true
 }
 
-# ============================================================================
-# Storage Variables
-# ============================================================================
+# Storage
 
 variable "enable_s3_object_lock" {
   description = "Enable S3 Object Lock (Governance Mode) on the assets bucket. Recommended for compliance workloads."
@@ -143,9 +135,7 @@ variable "object_lock_cloudtrail_retention_days" {
   }
 }
 
-# ============================================================================
-# Compute Variables
-# ============================================================================
+# Compute
 
 variable "ec2_instance_type" {
   description = "EC2 instance type"
@@ -177,9 +167,7 @@ variable "ebs_volume_size" {
   default     = 50
 }
 
-# ============================================================================
-# Database Variables
-# ============================================================================
+# Database
 
 variable "rds_instance_class" {
   description = "RDS instance class"
@@ -233,9 +221,7 @@ variable "rds_backup_retention_period" {
   }
 }
 
-# ============================================================================
-# Load Balancer Variables
-# ============================================================================
+# Load Balancer
 
 variable "domain_name" {
   description = <<-EOT
@@ -295,9 +281,7 @@ variable "create_route53_zone" {
   default     = false
 }
 
-# ============================================================================
-# CDN Variables
-# ============================================================================
+# CDN
 
 variable "enable_cloudfront" {
   description = <<-EOT
@@ -345,9 +329,7 @@ variable "geo_restriction_locations" {
   default     = []
 }
 
-# ============================================================================
-# Monitoring Variables
-# ============================================================================
+# Monitoring
 
 variable "cloudwatch_log_retention_days" {
   description = "CloudWatch log retention in days"
@@ -368,9 +350,7 @@ variable "enable_cloudtrail_sns_notifications" {
   default     = false
 }
 
-# ============================================================================
-# Cross-Region Replication Variables
-# ============================================================================
+# Cross-Region Replication
 
 variable "enable_s3_crr" {
   description = "Enable S3 cross-region replication for the assets bucket. Asynchronously copies objects to a replica bucket in a second region for disaster recovery."

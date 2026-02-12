@@ -227,7 +227,7 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
         }
       },
       {
-        Sid       = "DenyInsecureTransport"
+        Sid       = "EnforceTLS"
         Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"
@@ -252,7 +252,7 @@ resource "aws_s3_bucket_policy" "main" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "DenyInsecureTransport"
+        Sid       = "EnforceTLS"
         Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"
@@ -325,9 +325,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
 # ============================================================================
 
 # KMS key in replica region for encrypting replicated objects.
-# No explicit key policy needed — the AWS default grants the account root kms:*,
-# which lets IAM policies control access. The S3 replication IAM role already has
-# kms:Encrypt on this key, so replication works without extra service grants.
 resource "aws_kms_key" "replica" {
   count    = var.enable_s3_crr ? 1 : 0
   provider = aws.replica
@@ -335,6 +332,52 @@ resource "aws_kms_key" "replica" {
   description             = "KMS key for ${var.project_name} S3 replica encryption"
   deletion_window_in_days = 30
   enable_key_rotation     = true
+  rotation_period_in_days = 90
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "EnableIAMUserPermissions"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowS3ReplicationRoleToUseTheKey"
+        Effect = "Allow"
+        Principal = {
+          AWS = aws_iam_role.s3_replication[0].arn
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowS3ServiceToUseTheKey"
+        Effect = "Allow"
+        Principal = {
+          Service = "s3.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:GenerateDataKey*"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:SourceAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      }
+    ]
+  })
 
   tags = merge(var.tags, {
     Name = "${var.project_name}-${var.environment}-replica-kms-key"
@@ -420,7 +463,7 @@ resource "aws_s3_bucket_policy" "replica" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "DenyInsecureTransport"
+        Sid       = "EnforceTLS"
         Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"
@@ -545,6 +588,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_access_logs" {
   }
 
   rule {
+    id     = "transition-logs-to-glacier"
+    status = "Enabled"
+
+    filter {}
+
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+  }
+
+  rule {
     id     = "expire-old-logs"
     status = "Enabled"
 
@@ -594,7 +649,7 @@ resource "aws_s3_bucket_policy" "replica_access_logs" {
         }
       },
       {
-        Sid       = "DenyInsecureTransport"
+        Sid       = "EnforceTLS"
         Effect    = "Deny"
         Principal = "*"
         Action    = "s3:*"
@@ -629,6 +684,7 @@ resource "aws_iam_role" "s3_replication" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
+      Sid    = "AllowS3AssumeReplicationRole"
       Effect = "Allow"
       Principal = {
         Service = "s3.amazonaws.com"
@@ -653,7 +709,8 @@ resource "aws_iam_role_policy" "s3_replication" {
         Effect = "Allow"
         Action = [
           "s3:GetReplicationConfiguration",
-          "s3:ListBucket"
+          "s3:ListBucket",
+          "s3:GetBucketVersioning"
         ]
         Resource = aws_s3_bucket.main.arn
       },
@@ -672,7 +729,6 @@ resource "aws_iam_role_policy" "s3_replication" {
         Effect = "Allow"
         Action = [
           "s3:ReplicateObject",
-          "s3:ReplicateDelete",
           "s3:ReplicateTags"
         ]
         Resource = "${aws_s3_bucket.replica[0].arn}/*"
@@ -689,7 +745,8 @@ resource "aws_iam_role_policy" "s3_replication" {
         Sid    = "DestinationKMSEncrypt"
         Effect = "Allow"
         Action = [
-          "kms:Encrypt"
+          "kms:Encrypt",
+          "kms:GenerateDataKey"
         ]
         Resource = aws_kms_key.replica[0].arn
       }

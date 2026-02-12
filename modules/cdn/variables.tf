@@ -115,9 +115,7 @@ variable "tags" {
   default     = {}
 }
 
-# ============================================================================
-# ACM Certificate Variables
-# ============================================================================
+# ACM Certificate
 
 variable "domain_name" {
   description = "Custom domain name for CloudFront distribution. Required for TLS 1.2 enforcement."
@@ -138,4 +136,3 @@ variable "alb_certificate_arn" {
   description = "ARN of the ALB's ACM certificate. Reused for CloudFront when deploying to us-east-1."
   type        = string
 }
-

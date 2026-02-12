@@ -50,12 +50,6 @@ variable "s3_access_logs_bucket_id" {
   type        = string
 }
 
-variable "kms_key_arn" {
-  description = "KMS key ARN for encrypting ALB logs bucket"
-  type        = string
-  default     = null
-}
-
 variable "enable_object_lock_alb_logs" {
   description = "Enable S3 Object Lock (Governance Mode) on the ALB access logs bucket. Recommended for compliance workloads. WARNING: flipping this on an existing bucket destroys and recreates it — all objects are lost."
   type        = bool
