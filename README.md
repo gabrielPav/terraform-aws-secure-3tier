@@ -4,7 +4,7 @@
 ![Terraform Badge](https://img.shields.io/badge/Terraform-IaC-5c4ee5.svg?style=flat&logo=terraform&logoColor=white)
 
 
-This project automates the deployment of a secure, highly available, production-ready 3-tier architecture on AWS using Terraform.
+This project automates the deployment of a secure, highly available, production-ready 3-tier architecture on AWS cloud using Terraform.
 
 While many projects implement a standard 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete AWS environment using a defense-in-depth strategy, best-practice guardrails, zero-trust least-privilege access, end-to-end encryption, and auditable configurations to support real-world deployments.
 
@@ -61,7 +61,8 @@ Option B: If you set `create_route53_zone = true`, you must configure your domai
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/gabrielPav/terraform-aws-secure-3tier.git && cd terraform-aws-secure-3tier
+git clone https://github.com/gabrielPav/terraform-aws-secure-3tier.git
+cd terraform-aws-secure-3tier
 ```
 
 ### Option A: Use Existing Route53 Zone (Recommended - Faster)
@@ -342,7 +343,3 @@ See `variables.tf` for the complete list of available variables.
 - CloudFront security headers policy (HSTS, X-Frame-Options, Content-Security-Policy)
 - Cross-zone load balancing enabled
 - Rate limiting and bot control rules
-
-## License
-
-This project is licensed under the MIT License.
