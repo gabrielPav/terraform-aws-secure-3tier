@@ -1068,6 +1068,42 @@ resource "aws_cloudwatch_metric_alarm" "vpc_changes" {
   tags = var.tags
 }
 
+# CIS 3.12 — internet gateway or NAT gateway changes
+
+resource "aws_cloudwatch_log_metric_filter" "network_gateway_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  name           = "${var.project_name}-${var.environment}-network-gateway-changes"
+  pattern        = "{($.eventName=CreateCustomerGateway)||($.eventName=DeleteCustomerGateway)||($.eventName=AttachInternetGateway)||($.eventName=CreateInternetGateway)||($.eventName=DeleteInternetGateway)||($.eventName=DetachInternetGateway)||($.eventName=CreateNatGateway)||($.eventName=DeleteNatGateway)}"
+  log_group_name = aws_cloudwatch_log_group.cloudtrail[0].name
+
+  metric_transformation {
+    name      = "NetworkGatewayChanges"
+    namespace = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "network_gateway_changes" {
+  count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
+
+  alarm_name          = "${var.project_name}-${var.environment}-network-gateway-changes"
+  alarm_description   = "Alerts when internet gateways, NAT gateways, or customer gateways are created, deleted, or modified"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "NetworkGatewayChanges"
+  namespace           = "${var.project_name}/${var.environment}/CloudTrailMetrics"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  alarm_actions = [aws_sns_topic.cloudtrail_notifications[0].arn]
+  ok_actions    = [aws_sns_topic.cloudtrail_notifications[0].arn]
+
+  tags = var.tags
+}
+
 # CIS 3.7 — KMS key disabled or scheduled for deletion
 
 resource "aws_cloudwatch_log_metric_filter" "kms_cmk_changes" {

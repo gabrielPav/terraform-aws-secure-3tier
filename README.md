@@ -187,6 +187,12 @@ dig app.example.com
 
 EC2 instances are deployed in private subnets without public IP addresses. This project uses **EC2 Instance Connect Endpoint (EICE)** to provide secure SSH access without requiring a bastion host, complex SSM configs, or a VPN. No SSH port (22) is exposed to the Internet, SSH access is only allowed from the EIC Endpoint's security group, all connections are authenticated via IAM, connection logs are recorded in CloudTrail.
 
+To connect to an instance:
+
+```bash
+aws ec2-instance-connect ssh --instance-id <instance-id> --connection-type eice
+```
+
 You can also disable the EIC Endpoint if you don't need SSH access to instances, helping to achieve strict compliance.
 
 ```hcl
@@ -311,7 +317,7 @@ See `variables.tf` for the complete list of available variables.
 - ALB access logs enabled
 - VPC Flow Logs to CloudWatch
 - CloudTrail integrated with CloudWatch alerts for anomalous behavior and IAM/VPC/S3/KMS changes
-- WAF logging enabled
+- WAF logging enabled with sensitive field redaction (Authorization, cookies) and filtered to security events only
 - Log integrity monitoring and access control enforced
 
 ### Database Security:
@@ -338,11 +344,11 @@ See `variables.tf` for the complete list of available variables.
 
 ### Application Protection:
 
-- WAF with rules for OWASP Top 10, SQLi, and XSS protection
+- WAF with rules for OWASP Top 10, SQLi, XSS, and IP reputation-based threat protection
 - CloudFront Origin Access Control for S3
 - CloudFront Origin Shield for reduced origin load and improved cache hit ratio
 - CloudFront origin failover group (ALB to S3 on 500-504 errors)
 - CloudFront geo-restriction for regional access control
 - CloudFront security headers policy (HSTS, X-Frame-Options, Content-Security-Policy)
 - Cross-zone load balancing enabled
-- Rate limiting and bot control rules
+- Rate limiting and IP reputation filtering rules

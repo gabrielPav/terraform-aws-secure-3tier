@@ -264,7 +264,7 @@ resource "aws_s3_bucket_logging" "main" {
   bucket = aws_s3_bucket.main.id
 
   target_bucket = aws_s3_bucket.s3_access_logs.id
-  target_prefix = "main-bucket/"
+  target_prefix = "assets-bucket/"
 }
 
 # SSE-KMS with bucket key — cheaper than per-object KMS calls

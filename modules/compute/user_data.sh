@@ -1,6 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
+# Security patching (don't block the app if a repo is unreachable)
+dnf update -y --security || true
+
 # Install the LAMP stack
 dnf install -y httpd php8.3 php8.3-mysqlnd
 
@@ -8,7 +11,7 @@ dnf install -y httpd php8.3 php8.3-mysqlnd
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
 
-# Drop the app config — Apache can read it, nobody else
+# Set the application config
 cat > /etc/app-config.php <<EOF
 <?php
 return [
@@ -22,7 +25,7 @@ EOF
 chown root:apache /etc/app-config.php
 chmod 0640 /etc/app-config.php
 
-# Status page — verifies EC2 → Secrets Manager → RDS connectivity
+# Status page: verifies EC2 → Secrets Manager → RDS connectivity
 cat > /var/www/html/index.php <<'PHPEOF'
 <?php
 $config = require '/etc/app-config.php';
@@ -125,5 +128,5 @@ chmod 0644 /var/www/html/index.php
 # SELinux: let Apache make outbound connections (Secrets Manager, RDS)
 setsebool -P httpd_can_network_connect 1 || true
 
-# Fire it up
+# Enable Apache on boot and start it immediately
 systemctl enable --now httpd

@@ -404,10 +404,33 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
+  # IP reputation — blocks IPs known for bots, botnets, and other threats
+  rule {
+    name     = "AWSManagedRulesAmazonIpReputationList"
+    priority = 3
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesAmazonIpReputationList"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project_name}-${var.environment}-waf-ip-reputation"
+      sampled_requests_enabled   = true
+    }
+  }
+
   # SQLi protection — inspects query strings, body, cookies, URI
   rule {
     name     = "AWSManagedRulesSQLiRuleSet"
-    priority = 3
+    priority = 4
 
     statement {
       managed_rule_group_statement {
@@ -456,6 +479,41 @@ resource "aws_wafv2_web_acl_logging_configuration" "main" {
 
   log_destination_configs = [aws_cloudwatch_log_group.waf_logs[0].arn]
   resource_arn            = aws_wafv2_web_acl.main[0].arn
+
+  # Don't log tokens or session cookies — they're forwarded but shouldn't be stored
+  redacted_fields {
+    single_header {
+      name = "authorization"
+    }
+  }
+
+  redacted_fields {
+    single_header {
+      name = "cookie"
+    }
+  }
+
+  # Only log blocks and counts — allowed requests are just noise here
+  logging_filter {
+    default_behavior = "DROP"
+
+    filter {
+      behavior    = "KEEP"
+      requirement = "MEETS_ANY"
+
+      condition {
+        action_condition {
+          action = "BLOCK"
+        }
+      }
+
+      condition {
+        action_condition {
+          action = "COUNT"
+        }
+      }
+    }
+  }
 }
 
 # DNS — point the domain at CloudFront instead of the ALB
