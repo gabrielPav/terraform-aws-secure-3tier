@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Install the LAMP stack (minus the M — RDS handles that)
+# Install the LAMP stack
 dnf install -y httpd php8.3 php8.3-mysqlnd
 
 # Grab the region from instance metadata (IMDSv2)

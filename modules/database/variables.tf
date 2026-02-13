@@ -104,7 +104,7 @@ variable "enhanced_monitoring_interval" {
 variable "performance_insights_enabled" {
   description = "Enable Performance Insights for RDS"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "performance_insights_retention_period" {
