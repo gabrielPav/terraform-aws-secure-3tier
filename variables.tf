@@ -26,7 +26,7 @@ variable "common_tags" {
   default     = {}
 }
 
-# Networking
+# --- Networking ---
 
 variable "vpc_cidr" {
   description = "CIDR block for the VPC"
@@ -65,7 +65,7 @@ variable "enable_eic_endpoint" {
   default     = true
 }
 
-# Storage
+# --- Storage ---
 
 variable "enable_s3_object_lock" {
   description = "Enable S3 Object Lock (Governance Mode) on the assets bucket. Recommended for compliance workloads."
@@ -135,7 +135,7 @@ variable "object_lock_cloudtrail_retention_days" {
   }
 }
 
-# Compute
+# --- Compute ---
 
 variable "ec2_instance_type" {
   description = "EC2 instance type"
@@ -167,7 +167,7 @@ variable "ebs_volume_size" {
   default     = 50
 }
 
-# Database
+# --- Database ---
 
 variable "rds_instance_class" {
   description = "RDS instance class"
@@ -221,7 +221,7 @@ variable "rds_backup_retention_period" {
   }
 }
 
-# Load Balancer
+# --- Load Balancer ---
 
 variable "domain_name" {
   description = <<-EOT
@@ -281,7 +281,7 @@ variable "create_route53_zone" {
   default     = false
 }
 
-# CDN
+# --- CDN ---
 
 variable "enable_cloudfront" {
   description = <<-EOT
@@ -329,7 +329,7 @@ variable "geo_restriction_locations" {
   default     = []
 }
 
-# Monitoring
+# --- Monitoring ---
 
 variable "cloudwatch_log_retention_days" {
   description = "CloudWatch log retention in days"
@@ -343,14 +343,14 @@ variable "alarm_notification_email" {
   default     = ""
 }
 
-# Disabled by default, notifications are an optional secondary layer
+# Off by default — optional secondary alerting layer
 variable "enable_cloudtrail_sns_notifications" {
   description = "Enable SNS notifications for CloudTrail events and security monitoring alarms. Requires alarm_notification_email to be set."
   type        = bool
   default     = false
 }
 
-# Cross-Region Replication
+# --- Cross-Region Replication ---
 
 variable "enable_s3_crr" {
   description = "Enable S3 cross-region replication for the assets bucket. Asynchronously copies objects to a replica bucket in a second region for disaster recovery."

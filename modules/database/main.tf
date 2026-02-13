@@ -1,6 +1,4 @@
-# ============================================================================
-# Database Module - RDS Multi-AZ
-# ============================================================================
+# Database — RDS with encryption, TLS, and Secrets Manager credentials
 
 terraform {
   required_providers {
@@ -15,7 +13,7 @@ locals {
   db_parameter_group_family = "${var.db_engine}${var.db_engine_version}"
 }
 
-# DB Subnet Group
+# Subnet group — private subnets only
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-${var.environment}-db-subnet-group"
   subnet_ids = var.private_subnet_ids
@@ -25,7 +23,7 @@ resource "aws_db_subnet_group" "main" {
   })
 }
 
-# Security Group for RDS
+# RDS security group
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-${var.environment}-rds-sg"
   description = "Security group for RDS"
@@ -36,7 +34,7 @@ resource "aws_security_group" "rds" {
   })
 }
 
-# Ingress rule: MySQL/Aurora from EC2 SG
+# Only EC2 instances can talk to the database
 resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_ec2" {
   security_group_id = aws_security_group.rds.id
 
@@ -48,9 +46,9 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_ec2" {
   referenced_security_group_id = var.allowed_security_group_id
 }
 
-# No egress needed — SGs are stateful, response traffic flows back automatically
+# No egress rules — SGs are stateful, responses flow back on their own
 
-# IAM Role for RDS Enhanced Monitoring
+# Enhanced Monitoring IAM role
 resource "aws_iam_role" "rds_enhanced_monitoring" {
   count = var.enhanced_monitoring_interval > 0 ? 1 : 0
 
@@ -78,12 +76,12 @@ resource "aws_iam_role_policy_attachment" "rds_enhanced_monitoring" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonRDSEnhancedMonitoringRole"
 }
 
-# DB Parameter Group
+# Parameter group — UTF-8 + forced TLS
 resource "aws_db_parameter_group" "main" {
   name   = "${var.project_name}-${var.environment}-db-params"
   family = local.db_parameter_group_family
 
-  # Use utf8mb4_general_ci collation for compatibility with older PHP mysqli clients
+  # utf8mb4 with general_ci for broad PHP mysqli compatibility
   parameter {
     name  = "character_set_server"
     value = "utf8mb4"
@@ -94,7 +92,7 @@ resource "aws_db_parameter_group" "main" {
     value = "utf8mb4_general_ci"
   }
 
-  # Force TLS for all DB connections
+  # No plaintext connections — TLS or nothing
   parameter {
     name  = "require_secure_transport"
     value = "1"
@@ -103,8 +101,7 @@ resource "aws_db_parameter_group" "main" {
   tags = var.tags
 }
 
-# RDS Instance
-# In production environments add lifecycle { prevent_destroy = true }
+# The database — add lifecycle { prevent_destroy = true } in prod
 resource "aws_db_instance" "main" {
   identifier = "${var.project_name}-${var.environment}-db"
 
@@ -133,14 +130,14 @@ resource "aws_db_instance" "main" {
   backup_window           = "03:00-04:00"
   maintenance_window      = "mon:04:00-mon:05:00"
 
-  # "general" log omitted (it records every query, which may capture sensitive data)
+  # Skipping "general" log — it captures every query, including sensitive data
   enabled_cloudwatch_logs_exports = ["error", "slowquery"]
 
-  # Enhanced Monitoring
+  # Enhanced monitoring — OS-level metrics every 60s
   monitoring_interval = var.enhanced_monitoring_interval
   monitoring_role_arn = var.enhanced_monitoring_interval > 0 ? aws_iam_role.rds_enhanced_monitoring[0].arn : null
 
-  # Performance Insights
+  # Performance Insights — free tier gives 7 days of history
   performance_insights_enabled          = var.performance_insights_enabled
   performance_insights_retention_period = var.performance_insights_enabled ? var.performance_insights_retention_period : null
   performance_insights_kms_key_id       = var.performance_insights_enabled ? var.kms_key_id : null

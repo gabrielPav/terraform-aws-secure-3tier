@@ -115,7 +115,7 @@ variable "tags" {
   default     = {}
 }
 
-# ACM Certificate
+# ACM cert settings
 
 variable "domain_name" {
   description = "Custom domain name for CloudFront distribution. Required for TLS 1.2 enforcement."

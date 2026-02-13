@@ -1,6 +1,4 @@
-# ============================================================================
-# Storage Module - S3
-# ============================================================================
+# Storage — S3 buckets, access logging, cross-region replication
 
 terraform {
   required_providers {
@@ -14,11 +12,7 @@ terraform {
 
 data "aws_caller_identity" "current" {}
 
-# ============================================================================
-# S3 Bucket
-# ============================================================================
-
-# In production environments add lifecycle { prevent_destroy = true }
+# Main bucket — add lifecycle { prevent_destroy = true } in prod
 resource "aws_s3_bucket" "main" {
   bucket              = var.s3_bucket_name
   object_lock_enabled = var.enable_s3_object_lock
@@ -68,10 +62,7 @@ resource "aws_s3_bucket_object_lock_configuration" "main" {
   depends_on = [aws_s3_bucket_versioning.main]
 }
 
-# ============================================================================
-# Centralized S3 Access Logs Bucket
-# ============================================================================
-# Collects access logs from all project S3 buckets
+# Centralized access logs bucket — collects logs from all project S3 buckets
 
 resource "aws_s3_bucket" "s3_access_logs" {
   bucket              = "${var.project_name}-${var.environment}-s3-access-logs-${data.aws_caller_identity.current.account_id}"
@@ -182,7 +173,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "s3_access_logs" {
   }
 }
 
-# Bucket policy to allow S3 and CloudFront logging services to write logs
+# Allow S3 and CloudFront logging services to write here
 resource "aws_s3_bucket_policy" "s3_access_logs" {
   bucket = aws_s3_bucket.s3_access_logs.id
 
@@ -243,7 +234,7 @@ resource "aws_s3_bucket_policy" "s3_access_logs" {
   })
 }
 
-# Enforce HTTPS — skipped when CDN module owns the bucket policy
+# HTTPS-only — skipped when the CDN module manages its own bucket policy
 resource "aws_s3_bucket_policy" "main" {
   count  = var.skip_bucket_policy ? 0 : 1
   bucket = aws_s3_bucket.main.id
@@ -268,7 +259,7 @@ resource "aws_s3_bucket_policy" "main" {
   })
 }
 
-# Main bucket S3 server access logging configuration
+# Ship access logs to the centralized logging bucket
 resource "aws_s3_bucket_logging" "main" {
   bucket = aws_s3_bucket.main.id
 
@@ -276,7 +267,7 @@ resource "aws_s3_bucket_logging" "main" {
   target_prefix = "main-bucket/"
 }
 
-# Main bucket encryption
+# SSE-KMS with bucket key — cheaper than per-object KMS calls
 resource "aws_s3_bucket_server_side_encryption_configuration" "main" {
   bucket = aws_s3_bucket.main.id
 
@@ -316,15 +307,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "main" {
   }
 }
 
-# ============================================================================
-# S3 Cross-Region Replication (CKV_AWS_144)
-# ============================================================================
-# Asynchronously copies assets to a replica bucket in a second region for
-# disaster recovery. Delete marker replication is disabled so that
-# accidental or malicious deletes in the source do not propagate.
-# ============================================================================
+# Cross-region replication — async copy to a second region for DR.
+# Delete marker replication is off so malicious deletes don't propagate.
 
-# KMS key in replica region for encrypting replicated objects.
+# KMS key in the replica region — replicated objects get re-encrypted here
 resource "aws_kms_key" "replica" {
   count    = var.enable_s3_crr ? 1 : 0
   provider = aws.replica
@@ -392,7 +378,7 @@ resource "aws_kms_alias" "replica" {
   target_key_id = aws_kms_key.replica[0].key_id
 }
 
-# Replica destination bucket
+# Replica bucket in the secondary region
 resource "aws_s3_bucket" "replica" {
   count    = var.enable_s3_crr ? 1 : 0
   provider = aws.replica
@@ -509,7 +495,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica" {
   }
 }
 
-# Access logs bucket in replica region for the replica bucket
+# Access logs for the replica bucket — same pattern, different region
 resource "aws_s3_bucket" "replica_access_logs" {
   count    = var.enable_s3_crr ? 1 : 0
   provider = aws.replica
@@ -665,7 +651,7 @@ resource "aws_s3_bucket_policy" "replica_access_logs" {
   })
 }
 
-# Enable access logging on the replica bucket
+# Point replica bucket logs to its own logging bucket
 resource "aws_s3_bucket_logging" "replica" {
   count    = var.enable_s3_crr ? 1 : 0
   provider = aws.replica
@@ -676,7 +662,7 @@ resource "aws_s3_bucket_logging" "replica" {
   target_prefix = "replica-bucket/"
 }
 
-# IAM role for S3 replication
+# IAM role — S3 assumes this to read source and write to the replica
 resource "aws_iam_role" "s3_replication" {
   count       = var.enable_s3_crr ? 1 : 0
   name_prefix = "${var.project_name}-${var.environment}-s3-repl-"
@@ -754,7 +740,7 @@ resource "aws_iam_role_policy" "s3_replication" {
   })
 }
 
-# Replication configuration
+# Replication rule — replicate everything, re-encrypt with replica KMS key
 resource "aws_s3_bucket_replication_configuration" "main" {
   count  = var.enable_s3_crr ? 1 : 0
   bucket = aws_s3_bucket.main.id

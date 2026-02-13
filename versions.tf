@@ -1,7 +1,4 @@
-# ============================================================================
-# Terraform and AWS Provider Version Constraints
-# ============================================================================
-
+# Terraform and provider version pins
 terraform {
   required_version = "~> 1.3"
 

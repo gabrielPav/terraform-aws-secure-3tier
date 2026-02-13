@@ -1,14 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# 1. Install Apache, PHP, and MySQL
+# Install the LAMP stack (minus the M — RDS handles that)
 dnf install -y httpd php8.3 php8.3-mysqlnd
 
-# 2. Get metadata for AWS region
+# Grab the region from instance metadata (IMDSv2)
 TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 AWS_REGION=$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/region)
 
-# 3. Create the app configuration file
+# Drop the app config — Apache can read it, nobody else
 cat > /etc/app-config.php <<EOF
 <?php
 return [
@@ -22,7 +22,7 @@ EOF
 chown root:apache /etc/app-config.php
 chmod 0640 /etc/app-config.php
 
-# 4. Create index.php 
+# Status page — verifies EC2 → Secrets Manager → RDS connectivity
 cat > /var/www/html/index.php <<'PHPEOF'
 <?php
 $config = require '/etc/app-config.php';
@@ -40,7 +40,7 @@ $secrets_ok = !empty($credentials);
 if ($secrets_ok) {
     mysqli_report(MYSQLI_REPORT_OFF);
     $conn = mysqli_init();
-    // Connect using the fetched credentials and SSH flag
+    // Connect with TLS (MYSQLI_CLIENT_SSL)
     $status = @$conn->real_connect(
         $config['db_host'], 
         $credentials['username'], 
@@ -118,12 +118,12 @@ if ($secrets_ok) {
 </html>
 PHPEOF
 
-# 5. Set permissions
+# Lock down file permissions
 chown apache:apache /var/www/html/index.php
 chmod 0644 /var/www/html/index.php
 
-# 6. Allow Apache to network out
+# SELinux: let Apache make outbound connections (Secrets Manager, RDS)
 setsebool -P httpd_can_network_connect 1 || true
 
-# 7. Start and enable
+# Fire it up
 systemctl enable --now httpd

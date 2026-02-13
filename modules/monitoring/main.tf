@@ -1,6 +1,4 @@
-# ============================================================================
-# Monitoring Module - CloudWatch
-# ============================================================================
+# Monitoring — CloudWatch dashboard, alarms, SNS notifications, RDS events
 
 terraform {
   required_providers {
@@ -14,7 +12,7 @@ terraform {
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
-# CloudWatch Dashboard
+# Dashboard — ALB, ASG, and RDS metrics at a glance
 resource "aws_cloudwatch_dashboard" "main" {
   count = var.enable_dashboard ? 1 : 0
 
@@ -85,12 +83,8 @@ resource "aws_cloudwatch_dashboard" "main" {
   })
 }
 
-# ============================================================================
-# SNS Topic for Alarm Notifications
-# ============================================================================
-# Only created when alarm_notification_email is provided.
-# Email subscription requires manual confirmation via email link.
-# ============================================================================
+# SNS topic for alarm delivery — only created when an email is provided.
+# Email sub requires manual confirmation (check your inbox).
 
 resource "aws_sns_topic" "alarms" {
   count = var.alarm_notification_email != "" ? 1 : 0
@@ -149,12 +143,8 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alarm_notification_email
 }
 
-# ============================================================================
-# RDS Event Subscription (Instance-Level)
-# ============================================================================
-# Notifies on failover, failure, maintenance, and other critical RDS events.
-# Only created when an alarm notification email is provided (SNS topic exists).
-# ============================================================================
+# RDS event subscription — fires on failover, failure, maintenance, low storage.
+# Only created when the SNS topic exists (i.e. email is set).
 
 resource "aws_db_event_subscription" "instance" {
   count = var.alarm_notification_email != "" ? 1 : 0
@@ -179,7 +169,7 @@ resource "aws_db_event_subscription" "instance" {
   tags = var.tags
 }
 
-# CloudWatch Alarms
+# CloudWatch alarms — 5xx spikes, CPU saturation, storage pressure
 resource "aws_cloudwatch_metric_alarm" "alb_high_5xx" {
   count = var.enable_alarms ? 1 : 0
 

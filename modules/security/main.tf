@@ -1,4 +1,4 @@
-# Security — IAM, KMS, CloudTrail
+# Security — KMS keys, IAM roles, CloudTrail, CIS alarms
 
 terraform {
   required_providers {
@@ -17,9 +17,9 @@ locals {
   is_us_east_1 = var.aws_region == "us-east-1"
 }
 
-# In production environments add lifecycle { prevent_destroy = true }
+# Add lifecycle { prevent_destroy = true } in prod
 
-# KMS — Data Layer (RDS, Secrets Manager)
+# KMS key — data layer (RDS, Secrets Manager)
 
 resource "aws_kms_key" "data" {
   description             = "KMS key for ${var.project_name} data layer - RDS and Secrets Manager"
@@ -72,7 +72,7 @@ resource "aws_kms_alias" "data" {
   target_key_id = aws_kms_key.data.key_id
 }
 
-# KMS — Compute Layer (EBS, Auto Scaling)
+# KMS key — compute layer (EBS, Auto Scaling)
 
 resource "aws_kms_key" "compute" {
   description             = "KMS key for ${var.project_name} compute layer - EBS and Auto Scaling"
@@ -154,7 +154,7 @@ resource "aws_kms_alias" "compute" {
   target_key_id = aws_kms_key.compute.key_id
 }
 
-# KMS — Storage Layer (S3, CloudFront, ELB Log Delivery)
+# KMS key — storage layer (S3, CloudFront, ELB log delivery)
 
 resource "aws_kms_key" "storage" {
   description             = "KMS key for ${var.project_name} storage layer - S3 and CloudFront"
@@ -195,7 +195,7 @@ resource "aws_kms_key" "storage" {
         }
       },
       {
-        # CloudFront OAC needs to decrypt S3 objects encrypted with this KMS key
+        # CloudFront OAC decrypts KMS-encrypted S3 objects
         Sid    = "AllowCloudFrontToDecryptS3Objects"
         Effect = "Allow"
         Principal = {
@@ -245,7 +245,7 @@ resource "aws_kms_alias" "storage" {
   target_key_id = aws_kms_key.storage.key_id
 }
 
-# KMS — Observability Layer (CloudTrail, CloudWatch, SNS)
+# KMS key — observability layer (CloudTrail, CloudWatch, SNS)
 
 resource "aws_kms_key" "observability" {
   description             = "KMS key for ${var.project_name} observability layer - CloudTrail, CloudWatch, SNS"
@@ -323,8 +323,7 @@ resource "aws_kms_key" "observability" {
         }
       },
       {
-        # CloudTrail S3 bucket uses SSE-KMS with this key.
-        # S3 needs access to generate data keys for bucket-key encryption.
+        # S3 needs this key for CloudTrail bucket SSE-KMS + bucket key
         Sid    = "AllowS3ForCloudTrailBucketEncryption"
         Effect = "Allow"
         Principal = {
@@ -357,13 +356,13 @@ resource "aws_kms_alias" "observability" {
   target_key_id = aws_kms_key.observability.key_id
 }
 
-# Account-level EBS default encryption — catches volumes created outside Terraform
+# Force EBS encryption account-wide — catches anything created outside Terraform
 
 resource "aws_ebs_encryption_by_default" "this" {
   enabled = true
 }
 
-# IAM — EC2 Role
+# IAM role for EC2 instances
 
 resource "aws_iam_role" "ec2" {
   name_prefix = "${var.project_name}-${var.environment}-ec2-role-"
@@ -455,7 +454,7 @@ resource "aws_iam_instance_profile" "ec2" {
   tags = var.tags
 }
 
-# CloudTrail
+# CloudTrail — audit log everything
 
 resource "aws_s3_bucket" "cloudtrail" {
   count               = var.enable_cloudtrail ? 1 : 0
@@ -509,7 +508,7 @@ resource "aws_s3_bucket_object_lock_configuration" "cloudtrail" {
   depends_on = [aws_s3_bucket_versioning.cloudtrail]
 }
 
-# Access logging for CloudTrail bucket
+# S3 access logs for the CloudTrail bucket itself
 resource "aws_s3_bucket_logging" "cloudtrail_logging" {
   count  = var.enable_cloudtrail && var.enable_s3_access_logging ? 1 : 0
   bucket = aws_s3_bucket.cloudtrail[0].id
@@ -696,8 +695,7 @@ resource "aws_cloudtrail" "main" {
 
   sns_topic_name = var.enable_cloudtrail_sns_notifications ? aws_sns_topic.cloudtrail_notifications[0].arn : null
 
-  # Management events (IAM, EC2, RDS API calls) are always logged.
-  # S3 data events scoped to project buckets only to control costs.
+  # Management events always on; S3 data events scoped to project buckets to control costs
   event_selector {
     read_write_type           = "All"
     include_management_events = true
@@ -716,7 +714,7 @@ resource "aws_cloudtrail" "main" {
   tags = var.tags
 }
 
-# SNS — CloudTrail notifications and security alarms
+# SNS topic — CloudTrail notifications + security alarm delivery
 
 resource "aws_sns_topic" "cloudtrail_notifications" {
   count = var.enable_cloudtrail && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -782,7 +780,7 @@ resource "aws_sns_topic_subscription" "email" {
   endpoint  = var.alarm_notification_email
 }
 
-# CIS alarm — IAM policy changes
+# CIS 3.4 — IAM policy changes
 
 resource "aws_cloudwatch_log_metric_filter" "iam_policy_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -818,7 +816,7 @@ resource "aws_cloudwatch_metric_alarm" "iam_policy_changes" {
   tags = var.tags
 }
 
-# CIS 3.1 — Unauthorized API calls
+# CIS 3.1 — unauthorized API calls (AccessDenied / UnauthorizedAccess)
 
 resource "aws_cloudwatch_log_metric_filter" "unauthorized_api_calls" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -854,7 +852,7 @@ resource "aws_cloudwatch_metric_alarm" "unauthorized_api_calls" {
   tags = var.tags
 }
 
-# CIS 3.5 — CloudTrail configuration changes
+# CIS 3.5 — someone touching CloudTrail config
 
 resource "aws_cloudwatch_log_metric_filter" "cloudtrail_config_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -890,7 +888,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudtrail_config_changes" {
   tags = var.tags
 }
 
-# CIS 3.8 — S3 bucket policy changes
+# CIS 3.8 — S3 bucket policy or ACL changes
 
 resource "aws_cloudwatch_log_metric_filter" "s3_bucket_policy_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -926,7 +924,7 @@ resource "aws_cloudwatch_metric_alarm" "s3_bucket_policy_changes" {
   tags = var.tags
 }
 
-# CIS 3.9 — AWS Config changes
+# CIS 3.9 — AWS Config recorder tampered with
 
 resource "aws_cloudwatch_log_metric_filter" "aws_config_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -962,7 +960,7 @@ resource "aws_cloudwatch_metric_alarm" "aws_config_changes" {
   tags = var.tags
 }
 
-# CIS 3.10 — Security group changes
+# CIS 3.10 — security group changes
 
 resource "aws_cloudwatch_log_metric_filter" "security_group_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -998,7 +996,7 @@ resource "aws_cloudwatch_metric_alarm" "security_group_changes" {
   tags = var.tags
 }
 
-# CIS 3.13 — Route table changes
+# CIS 3.13 — route table changes
 
 resource "aws_cloudwatch_log_metric_filter" "route_table_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -1034,7 +1032,7 @@ resource "aws_cloudwatch_metric_alarm" "route_table_changes" {
   tags = var.tags
 }
 
-# CIS 3.14 — VPC changes
+# CIS 3.14 — VPC/peering/gateway changes
 
 resource "aws_cloudwatch_log_metric_filter" "vpc_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -1070,7 +1068,7 @@ resource "aws_cloudwatch_metric_alarm" "vpc_changes" {
   tags = var.tags
 }
 
-# CIS 3.7 — KMS key disable or deletion
+# CIS 3.7 — KMS key disabled or scheduled for deletion
 
 resource "aws_cloudwatch_log_metric_filter" "kms_cmk_changes" {
   count = var.enable_cloudtrail && var.enable_cloudwatch && var.enable_cloudtrail_sns_notifications ? 1 : 0
@@ -1106,8 +1104,8 @@ resource "aws_cloudwatch_metric_alarm" "kms_cmk_changes" {
   tags = var.tags
 }
 
-# KMS — us-east-1 (WAF logs, Route53 query logs)
-# Only created when primary region is not us-east-1; otherwise the observability key is reused.
+# KMS key in us-east-1 for WAF logs and Route53 query logs
+# Skipped when we're already in us-east-1 — the observability key covers it
 
 resource "aws_kms_key" "us_east_1" {
   count    = local.is_us_east_1 ? 0 : 1

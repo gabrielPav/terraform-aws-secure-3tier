@@ -1,6 +1,4 @@
-# ============================================================================
-# CDN Module - CloudFront
-# ============================================================================
+# CDN — CloudFront distribution, WAF, security headers, OAC for S3
 
 terraform {
   required_providers {
@@ -12,29 +10,20 @@ terraform {
   }
 }
 
-# ============================================================================
-# Local Variables
-# ============================================================================
-
 locals {
-  # True in us-east-1, where we can reuse the ALB cert for CloudFront
+  # Reuse the ALB cert when we're already in us-east-1
   is_us_east_1 = var.aws_region == "us-east-1"
 
-  # Only create a separate cert when CF is on, domain is set, and we're outside us-east-1
+  # Need a separate cert only when CF is on + domain set + not in us-east-1
   create_cloudfront_certificate = var.enable_cloudfront && var.domain_name != "" && !local.is_us_east_1
 
-  # In us-east-1 reuse the ALB cert; otherwise use the one we create below
+  # Pick the right cert ARN
   cloudfront_certificate_arn = var.domain_name != "" ? (
     local.is_us_east_1 ? var.alb_certificate_arn : aws_acm_certificate.cloudfront[0].arn
   ) : ""
 }
 
-# ============================================================================
-# ACM Certificate for CloudFront (us-east-1)
-# ============================================================================
-# CloudFront only accepts certs from us-east-1. If we're already there
-# we reuse the ALB cert; otherwise we create a dedicated one here.
-# ============================================================================
+# ACM cert for CloudFront — must be in us-east-1 (reuses ALB cert if already there)
 
 resource "aws_acm_certificate" "cloudfront" {
   count    = local.create_cloudfront_certificate ? 1 : 0
@@ -52,7 +41,7 @@ resource "aws_acm_certificate" "cloudfront" {
   })
 }
 
-# DNS validation records for CloudFront certificate
+# DNS validation for the CloudFront cert
 resource "aws_route53_record" "cloudfront_cert_validation" {
   for_each = local.create_cloudfront_certificate ? {
     for dvo in aws_acm_certificate.cloudfront[0].domain_validation_options : dvo.domain_name => {
@@ -70,7 +59,7 @@ resource "aws_route53_record" "cloudfront_cert_validation" {
   allow_overwrite = true
 }
 
-# Wait for CloudFront certificate validation
+# Wait for cert to reach ISSUED
 resource "aws_acm_certificate_validation" "cloudfront" {
   count    = local.create_cloudfront_certificate ? 1 : 0
   provider = aws.us_east_1
@@ -79,7 +68,7 @@ resource "aws_acm_certificate_validation" "cloudfront" {
   validation_record_fqdns = [for record in aws_route53_record.cloudfront_cert_validation : record.fqdn]
 }
 
-# Security response headers (HSTS, X-Frame-Options, etc.)
+# Security headers — HSTS, clickjacking protection, MIME sniffing, etc.
 resource "aws_cloudfront_response_headers_policy" "security_headers" {
   count = var.enable_cloudfront ? 1 : 0
 
@@ -87,7 +76,7 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
   comment = "Security headers policy for ${var.project_name} ${var.environment}"
 
   security_headers_config {
-    # HSTS — tell browsers to always use HTTPS
+    # HSTS — browsers must use HTTPS, no exceptions
     strict_transport_security {
       access_control_max_age_sec = 31536000
       include_subdomains         = true
@@ -95,25 +84,25 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
       override                   = true
     }
 
-    # X-Content-Type-Options: nosniff
+    # Prevent MIME sniffing
     content_type_options {
       override = true
     }
 
-    # X-Frame-Options: DENY (clickjacking protection)
+    # Block framing — clickjacking protection
     frame_options {
       frame_option = "DENY"
       override     = true
     }
 
-    # Legacy XSS protection for older browsers
+    # XSS filter for legacy browsers
     xss_protection {
       mode_block = true
       protection = true
       override   = true
     }
 
-    # Don't leak full URL on cross-origin requests
+    # Don't leak full URLs on cross-origin navigation
     referrer_policy {
       referrer_policy = "strict-origin-when-cross-origin"
       override        = true
@@ -121,7 +110,7 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
   }
 }
 
-# CloudFront Origin Access Control (for S3)
+# OAC — S3 origin gets SigV4-signed requests from CloudFront
 resource "aws_cloudfront_origin_access_control" "s3" {
   count = var.enable_cloudfront ? 1 : 0
 
@@ -132,8 +121,7 @@ resource "aws_cloudfront_origin_access_control" "s3" {
   signing_protocol                  = "sigv4"
 }
 
-# Let CloudFront OAC read from the assets bucket.
-# OAC signs requests with SigV4, so S3 needs an explicit allow or you get 403s.
+# Bucket policy for OAC — without this, S3 returns 403 on every request
 resource "aws_s3_bucket_policy" "cloudfront_oac" {
   count  = var.enable_cloudfront ? 1 : 0
   bucket = var.s3_bucket_id
@@ -172,11 +160,7 @@ resource "aws_s3_bucket_policy" "cloudfront_oac" {
   })
 }
 
-# ============================================================================
-# Cache Policies
-# ============================================================================
-
-# Cache policy for ALB origin (dynamic content with authentication)
+# Cache policy for ALB — forward cookies + auth headers (dynamic content)
 resource "aws_cloudfront_cache_policy" "alb" {
   count = var.enable_cloudfront ? 1 : 0
 
@@ -207,7 +191,7 @@ resource "aws_cloudfront_cache_policy" "alb" {
   }
 }
 
-# Cache policy for S3 origin (static assets - aggressive caching)
+# Cache policy for S3 — cache everything aggressively
 resource "aws_cloudfront_cache_policy" "s3_assets" {
   count = var.enable_cloudfront ? 1 : 0
 
@@ -235,7 +219,7 @@ resource "aws_cloudfront_cache_policy" "s3_assets" {
   }
 }
 
-# CloudFront Distribution
+# The distribution
 resource "aws_cloudfront_distribution" "main" {
   count = var.enable_cloudfront ? 1 : 0
 
@@ -246,7 +230,7 @@ resource "aws_cloudfront_distribution" "main" {
   price_class         = var.price_class
   aliases             = var.domain_name != "" ? [var.domain_name] : []
 
-  # ALB Origin
+  # ALB origin — HTTPS only to the backend
   origin {
     domain_name = var.alb_dns_name
     origin_id   = "${var.project_name}-${var.environment}-alb"
@@ -264,14 +248,14 @@ resource "aws_cloudfront_distribution" "main" {
     }
   }
 
-  # S3 Origin
+  # S3 origin — static assets via OAC
   origin {
     domain_name              = var.s3_bucket_domain_name
     origin_id                = "${var.project_name}-${var.environment}-s3"
     origin_access_control_id = aws_cloudfront_origin_access_control.s3[0].id
   }
 
-  # Origin failover: if the ALB returns 500-504, serve from S3 instead
+  # Failover: ALB 5xx → fall back to S3
   origin_group {
     origin_id = "${var.project_name}-${var.environment}-origin-group"
 
@@ -300,7 +284,7 @@ resource "aws_cloudfront_distribution" "main" {
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers[0].id
   }
 
-  # S3 Cache Behavior (static assets)
+  # /assets/* → S3 with aggressive caching
   ordered_cache_behavior {
     path_pattern     = "/assets/*"
     allowed_methods  = ["GET", "HEAD", "OPTIONS"]
@@ -322,17 +306,17 @@ resource "aws_cloudfront_distribution" "main" {
   }
 
   viewer_certificate {
-    # Use CloudFront default certificate when no custom domain
+    # Fall back to *.cloudfront.net cert when no custom domain
     cloudfront_default_certificate = var.domain_name == ""
     acm_certificate_arn            = var.domain_name != "" ? local.cloudfront_certificate_arn : null
     ssl_support_method             = var.domain_name != "" ? "sni-only" : null
     minimum_protocol_version       = var.domain_name != "" ? "TLSv1.2_2021" : null
   }
 
-  # CloudFront must wait for certificate validation before deployment
+  # Can't deploy until the cert is validated
   depends_on = [aws_acm_certificate_validation.cloudfront]
 
-  # Logging is configured via Standard Logging v2 (see resources below)
+  # Logging via Standard Logging v2 (below)
 
   # WAF
   web_acl_id = var.enable_waf ? aws_wafv2_web_acl.main[0].arn : null
@@ -340,7 +324,7 @@ resource "aws_cloudfront_distribution" "main" {
   tags = var.tags
 }
 
-# WAF Web ACL
+# WAF — rate limiting + AWS managed rule sets
 resource "aws_wafv2_web_acl" "main" {
   count    = var.enable_cloudfront && var.enable_waf ? 1 : 0
   provider = aws.us_east_1
@@ -352,7 +336,7 @@ resource "aws_wafv2_web_acl" "main" {
     allow {}
   }
 
-  # Rate limiting - blocks IPs exceeding 500 requests per 5 minutes
+  # Rate limit — 500 req/5min per IP before we block
   rule {
     name     = "RateLimitRule"
     priority = 0
@@ -397,7 +381,7 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  # Known Bad Inputs Rule Set - includes Log4j/Log4Shell protection (CVE-2021-44228)
+  # Known bad inputs — covers Log4Shell (CVE-2021-44228) and friends
   rule {
     name     = "AWSManagedRulesKnownBadInputsRuleSet"
     priority = 2
@@ -420,7 +404,7 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
-  # SQL Injection Rule Set - inspects query strings, body, cookies, and URI path
+  # SQLi protection — inspects query strings, body, cookies, URI
   rule {
     name     = "AWSManagedRulesSQLiRuleSet"
     priority = 3
@@ -452,12 +436,8 @@ resource "aws_wafv2_web_acl" "main" {
   tags = var.tags
 }
 
-# ============================================================================
-# WAF Logging
-# ============================================================================
-# Log group name MUST start with "aws-waf-logs-" or AWS rejects it.
-# us-east-1 required for CloudFront-scoped WAFs.
-# ============================================================================
+# WAF logging — name MUST start with "aws-waf-logs-" or AWS rejects it
+# Must be in us-east-1 for CloudFront-scoped WAFs
 
 resource "aws_cloudwatch_log_group" "waf_logs" {
   count    = var.enable_cloudfront && var.enable_waf && var.enable_waf_logging ? 1 : 0
@@ -478,9 +458,7 @@ resource "aws_wafv2_web_acl_logging_configuration" "main" {
   resource_arn            = aws_wafv2_web_acl.main[0].arn
 }
 
-# ============================================================================
-# Route53 DNS — point domain at CloudFront instead of ALB
-# ============================================================================
+# DNS — point the domain at CloudFront instead of the ALB
 
 resource "aws_route53_record" "cloudfront_alias" {
   count = var.enable_cloudfront && var.domain_name != "" ? 1 : 0
@@ -496,13 +474,9 @@ resource "aws_route53_record" "cloudfront_alias" {
   }
 }
 
-# ============================================================================
-# CloudFront Access Logs (Standard Logging v2 → S3)
-# ============================================================================
-# Can't use legacy logging_config — it needs ACLs, and our buckets use
-# BucketOwnerEnforced. V2 delivers via Vended Logs + bucket policies.
-# Must be in us-east-1 for CloudFront.
-# ============================================================================
+# CloudFront access logs — Standard Logging v2 → S3
+# Legacy logging_config needs ACLs which we don't allow (BucketOwnerEnforced)
+# V2 uses Vended Logs + bucket policies instead. Must be in us-east-1.
 
 resource "aws_cloudwatch_log_delivery_source" "cloudfront" {
   count    = var.enable_cloudfront && var.enable_logging ? 1 : 0

@@ -1,4 +1,4 @@
-# Root module — wires all child modules together
+# Root module — wires everything together
 
 provider "aws" {
   region = var.aws_region
@@ -14,7 +14,7 @@ provider "aws" {
   }
 }
 
-# CloudFront ACM certs must be in us-east-1
+# CloudFront needs certs in us-east-1
 provider "aws" {
   alias  = "us_east_1"
   region = "us-east-1"
@@ -30,7 +30,7 @@ provider "aws" {
   }
 }
 
-# Provider alias for S3 cross-region replication destination
+# Replica region for S3 cross-region replication
 provider "aws" {
   alias  = "replica"
   region = var.s3_replica_region
@@ -96,7 +96,7 @@ module "security" {
   enable_object_lock_cloudtrail         = var.enable_object_lock_cloudtrail
   object_lock_cloudtrail_retention_days = var.object_lock_cloudtrail_retention_days
 
-  # SNS notifications for CloudTrail events and security monitoring alarms
+  # SNS alerts for security events
   enable_cloudtrail_sns_notifications = var.enable_cloudtrail_sns_notifications
   alarm_notification_email            = var.alarm_notification_email
 
@@ -192,7 +192,7 @@ module "compute" {
   iam_instance_profile   = module.security.ec2_instance_profile_name
   alb_security_group_ids = [module.load_balancer.alb_security_group_id]
 
-  # EC2 Instance Connect Endpoint for SSH access
+  # EIC for SSH into private instances
   eic_security_group_id = module.networking.eic_endpoint_security_group_id
   enable_eic_ssh_access = var.enable_eic_endpoint
 
@@ -232,17 +232,17 @@ module "load_balancer" {
   enable_http2                        = true
   enable_cross_zone                   = true
 
-  # KMS key for CloudWatch log groups in us-east-1 (Route53 query logs)
+  # KMS for Route53 query logs (must live in us-east-1)
   us_east_1_kms_key_arn = module.security.us_east_1_kms_key_arn
 
-  # SSL/TLS — ACM cert auto-created and DNS-validated via Route53
+  # TLS — ACM cert auto-created and DNS-validated via Route53
   domain_name            = var.domain_name
   redirect_http_to_https = var.redirect_http_to_https
   create_route53_zone    = var.create_route53_zone
 
   enable_https = true
 
-  # When CloudFront is enabled, restrict ALB to CloudFront IPs only
+  # Lock ALB ingress to CloudFront IPs when CDN is on
   restrict_ingress_to_cloudfront = var.enable_cloudfront
 
   # Skip Route53 A record when CloudFront handles DNS
@@ -276,13 +276,13 @@ module "cdn" {
   enable_compression = true
   enable_logging     = true
 
-  # ACM — CloudFront needs a cert in us-east-1; reuses ALB cert if we're already there
+  # ACM — reuses ALB cert in us-east-1, creates a separate one otherwise
   domain_name         = var.domain_name
   aws_region          = var.aws_region
   route53_zone_id     = module.load_balancer.route53_zone_id
   alb_certificate_arn = module.load_balancer.acm_certificate_arn
 
-  # KMS key for CloudWatch log groups in us-east-1 (WAF logs)
+  # KMS for WAF logs (must live in us-east-1)
   us_east_1_kms_key_arn = module.security.us_east_1_kms_key_arn
 
   # WAF (optional)

@@ -1,4 +1,4 @@
-# Data Layer KMS Key (RDS, Secrets Manager)
+# Data layer (RDS, Secrets Manager)
 output "kms_data_key_id" {
   description = "KMS key ID for the data layer (RDS, Secrets Manager)"
   value       = aws_kms_key.data.key_id
@@ -9,7 +9,7 @@ output "kms_data_key_arn" {
   value       = aws_kms_key.data.arn
 }
 
-# Compute Layer KMS Key (EBS, Auto Scaling)
+# Compute layer (EBS, Auto Scaling)
 output "kms_compute_key_id" {
   description = "KMS key ID for the compute layer (EBS, Auto Scaling)"
   value       = aws_kms_key.compute.key_id
@@ -20,7 +20,7 @@ output "kms_compute_key_arn" {
   value       = aws_kms_key.compute.arn
 }
 
-# Storage Layer KMS Key (S3, CloudFront)
+# Storage layer (S3, CloudFront)
 output "kms_storage_key_id" {
   description = "KMS key ID for the storage layer (S3, CloudFront)"
   value       = aws_kms_key.storage.key_id
@@ -31,7 +31,7 @@ output "kms_storage_key_arn" {
   value       = aws_kms_key.storage.arn
 }
 
-# Observability Layer KMS Key (CloudTrail, CloudWatch, SNS)
+# Observability layer (CloudTrail, CloudWatch, SNS)
 output "kms_observability_key_id" {
   description = "KMS key ID for the observability layer (CloudTrail, CloudWatch, SNS)"
   value       = aws_kms_key.observability.key_id

@@ -31,7 +31,7 @@ locals {
   ) : ""
 }
 
-# ALB access logs bucket
+# S3 bucket for ALB access logs
 
 resource "aws_s3_bucket" "alb_logs" {
   count               = var.enable_access_logs ? 1 : 0
@@ -72,7 +72,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "alb_logs" {
 
   rule {
     apply_server_side_encryption_by_default {
-      # ALB access logs only support SSE-S3, not SSE-KMS
+      # ALB logs only support SSE-S3 — KMS isn't an option here
       sse_algorithm = "AES256"
     }
   }
@@ -193,9 +193,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
   }
 }
 
-# ALB security group
-# When CloudFront is in front, ingress is restricted to CloudFront IPs via
-# the AWS managed prefix list to prevent direct ALB access.
+# ALB security group — when CloudFront is on, only CloudFront IPs can reach us
 
 data "aws_ec2_managed_prefix_list" "cloudfront" {
   count = var.restrict_ingress_to_cloudfront ? 1 : 0
@@ -212,7 +210,7 @@ resource "aws_security_group" "alb" {
   })
 }
 
-# When CloudFront is enabled, only allow HTTPS from CloudFront to prevent bypassing it
+# HTTPS from CloudFront only — prevents anyone from hitting the ALB directly
 resource "aws_vpc_security_group_ingress_rule" "alb_https_cloudfront" {
   count = var.restrict_ingress_to_cloudfront ? 1 : 0
 
@@ -237,11 +235,8 @@ resource "aws_vpc_security_group_ingress_rule" "alb_https_public" {
   cidr_ipv4   = "0.0.0.0/0"
 }
 
-# Allows HTTP traffic to reach the ALB so it can redirect users to HTTPS.
-# No unencrypted traffic is ever forwarded to backend targets.
-# This rule is only created when CloudFront is disabled. When CloudFront
-# is enabled (the default), it handles the redirect at the edge and this
-# rule will not be created.
+# HTTP ingress for the 301→HTTPS redirect. Only created without CloudFront —
+# when CF is on, it handles the redirect at the edge instead.
 resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
   count = var.restrict_ingress_to_cloudfront ? 0 : 1
 
@@ -254,9 +249,8 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
   cidr_ipv4   = "0.0.0.0/0"
 }
 
-# ALB only forwards to registered targets on port 80 within the VPC.
-# Scoped to VPC CIDR instead of a target SG to avoid a circular dependency
-# (compute needs ALB SG, and referencing compute SG here would create a cycle).
+# Egress to targets — scoped to VPC CIDR to dodge the circular dependency
+# (compute references this SG, so we can't reference compute's SG back)
 resource "aws_vpc_security_group_egress_rule" "alb_to_targets" {
   security_group_id = aws_security_group.alb.id
   description       = "HTTP to targets within VPC"
@@ -267,7 +261,7 @@ resource "aws_vpc_security_group_egress_rule" "alb_to_targets" {
   cidr_ipv4   = var.vpc_cidr
 }
 
-# ACM certificate (only when domain_name is provided without an existing cert)
+# ACM certificate — auto-created and DNS-validated when a domain is provided
 
 resource "aws_acm_certificate" "main" {
   count = local.create_acm_certificate ? 1 : 0
@@ -275,7 +269,7 @@ resource "aws_acm_certificate" "main" {
   domain_name       = var.domain_name
   validation_method = "DNS"
 
-  # Create new cert before destroying old one to avoid downtime
+  # Swap certs without downtime
   lifecycle {
     create_before_destroy = true
   }
@@ -285,7 +279,7 @@ resource "aws_acm_certificate" "main" {
   })
 }
 
-# New Route53 zone (optional, requires manual nameserver update at registrar)
+# New Route53 zone — only if you don't have one yet (NS update at registrar required)
 resource "aws_route53_zone" "created" {
   count = local.create_acm_certificate && var.create_route53_zone ? 1 : 0
 
@@ -297,7 +291,7 @@ resource "aws_route53_zone" "created" {
   })
 }
 
-# Look up existing Route53 zone (default path — no NS delegation needed)
+# Look up existing zone — the fast path, no NS delegation needed
 data "aws_route53_zone" "existing" {
   count = var.domain_name != "" && !var.create_route53_zone ? 1 : 0
 
@@ -305,7 +299,7 @@ data "aws_route53_zone" "existing" {
   private_zone = false
 }
 
-# Route53 DNS query logging (only for newly created zones)
+# DNS query logging — only for newly created zones, ships to CW in us-east-1
 
 resource "aws_cloudwatch_log_group" "route53_query_logs" {
   count    = var.enable_dns_query_logging && var.create_route53_zone ? 1 : 0
@@ -350,7 +344,7 @@ resource "aws_route53_query_log" "main" {
   depends_on = [aws_cloudwatch_log_resource_policy.route53_query_logging]
 }
 
-# DNS records for ACM certificate validation
+# CNAME records for ACM DNS validation
 
 resource "aws_route53_record" "acm_validation" {
   for_each = local.create_acm_certificate ? {
@@ -370,7 +364,7 @@ resource "aws_route53_record" "acm_validation" {
   allow_overwrite = true
 }
 
-# Waits for certificate to reach ISSUED status (typically 2-5 minutes)
+# Wait for cert validation — usually 2-5 min
 resource "aws_acm_certificate_validation" "main" {
   count = local.create_acm_certificate ? 1 : 0
 
@@ -378,7 +372,7 @@ resource "aws_acm_certificate_validation" "main" {
   validation_record_fqdns = [for record in aws_route53_record.acm_validation : record.fqdn]
 }
 
-# Application Load Balancer
+# The ALB itself
 
 resource "aws_lb" "main" {
   name               = "${var.project_name}-${var.environment}-alb"
@@ -403,9 +397,8 @@ resource "aws_lb" "main" {
   })
 }
 
-# HTTP listener - redirects to HTTPS when enabled, otherwise forwards to targets
-# Skipped when CloudFront is enabled since CloudFront connects on HTTPS only
-# and no security group ingress exists for port 80 in that configuration.
+# HTTP listener — 301 redirect to HTTPS. Skipped when CloudFront is on
+# (CF connects over HTTPS only, and port 80 isn't open in the SG anyway)
 resource "aws_lb_listener" "http" {
   count = var.restrict_ingress_to_cloudfront ? 0 : 1
 
@@ -440,7 +433,7 @@ resource "aws_lb_listener" "http" {
   })
 }
 
-# HTTPS listener - terminates TLS and forwards to targets
+# HTTPS listener — terminates TLS, forwards plain HTTP to targets
 resource "aws_lb_listener" "https" {
   count = local.enable_https ? 1 : 0
 
@@ -455,7 +448,7 @@ resource "aws_lb_listener" "https" {
     target_group_arn = var.target_group_arns[0]
   }
 
-  # Certificate must be validated before attaching to listener
+  # Cert must be ISSUED before we can attach it
   depends_on = [aws_acm_certificate_validation.main]
 
   tags = merge(var.tags, {
@@ -463,7 +456,7 @@ resource "aws_lb_listener" "https" {
   })
 }
 
-# Route53 A record pointing domain to ALB (skipped when CloudFront handles DNS)
+# DNS A record → ALB (skipped when CloudFront owns the DNS record)
 resource "aws_route53_record" "alb_alias" {
   count = var.domain_name != "" && var.create_dns_record ? 1 : 0
 

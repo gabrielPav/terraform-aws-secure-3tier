@@ -1,6 +1,4 @@
-# ============================================================================
-# Networking Module - VPC, Subnets, NAT, Endpoints
-# ============================================================================
+# Networking — VPC, subnets, NAT gateways, VPC endpoints
 
 terraform {
   required_providers {
@@ -18,7 +16,6 @@ data "aws_availability_zones" "available" {
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# VPC
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
@@ -31,7 +28,7 @@ resource "aws_vpc" "main" {
   })
 }
 
-# Lock down the default SG — no rules means no traffic
+# Nuke the default SG — zero rules, zero traffic
 resource "aws_default_security_group" "default" {
   vpc_id = aws_vpc.main.id
 
@@ -40,7 +37,7 @@ resource "aws_default_security_group" "default" {
   })
 }
 
-# Internet Gateway
+# IGW
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
@@ -49,7 +46,7 @@ resource "aws_internet_gateway" "main" {
   })
 }
 
-# Public Subnets
+# Public subnets
 resource "aws_subnet" "public" {
   count = var.number_of_availability_zones
 
@@ -64,7 +61,7 @@ resource "aws_subnet" "public" {
   })
 }
 
-# Private Subnets
+# Private subnets
 resource "aws_subnet" "private" {
   count = var.number_of_availability_zones
 
@@ -78,7 +75,7 @@ resource "aws_subnet" "private" {
   })
 }
 
-# Elastic IPs for NAT
+# EIPs for NAT gateways
 resource "aws_eip" "nat" {
   count      = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : var.number_of_availability_zones) : 0
   domain     = "vpc"
@@ -89,7 +86,7 @@ resource "aws_eip" "nat" {
   })
 }
 
-# NAT Gateways
+# NAT gateways
 resource "aws_nat_gateway" "main" {
   count = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : var.number_of_availability_zones) : 0
 
@@ -102,7 +99,7 @@ resource "aws_nat_gateway" "main" {
   })
 }
 
-# Public Route Table
+# Public route table — all traffic via IGW
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
@@ -123,7 +120,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private Route Tables
+# Private route tables — outbound via NAT
 resource "aws_route_table" "private" {
   count = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : var.number_of_availability_zones) : 0
 
@@ -146,7 +143,7 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private[var.single_nat_gateway ? 0 : count.index].id
 }
 
-# VPC Flow Logs
+# Flow logs — ships to CloudWatch for network forensics
 resource "aws_cloudwatch_log_group" "flow_logs" {
   count = var.enable_flow_logs ? 1 : 0
 
@@ -221,14 +218,14 @@ resource "aws_flow_log" "vpc" {
   tags = var.tags
 }
 
-# VPC Endpoints
+# S3 gateway endpoint — keeps S3 traffic off the internet
 resource "aws_vpc_endpoint" "s3" {
   count = var.enable_s3_endpoint ? 1 : 0
 
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
   vpc_endpoint_type = "Gateway"
-  # Attached to all route tables to enforce the S3 endpoint policy as a VPC-wide data perimeter
+  # Attach to all route tables so the endpoint policy acts as a VPC-wide data perimeter
   route_table_ids = concat([aws_route_table.public.id], aws_route_table.private[*].id)
 
   tags = merge(var.tags, {
@@ -279,7 +276,7 @@ resource "aws_vpc_endpoint_policy" "s3" {
   })
 }
 
-# Interface Endpoints Security Group
+# Shared SG for all interface endpoints
 resource "aws_security_group" "vpc_endpoints" {
   count = length(var.enable_interface_endpoints) > 0 ? 1 : 0
 
@@ -290,7 +287,7 @@ resource "aws_security_group" "vpc_endpoints" {
   tags = var.tags
 }
 
-# Ingress Rule: HTTPS from VPC
+# Allow HTTPS from within the VPC only
 resource "aws_vpc_security_group_ingress_rule" "vpc_endpoints_https" {
   count = length(var.enable_interface_endpoints) > 0 ? 1 : 0
 
@@ -318,11 +315,9 @@ resource "aws_vpc_endpoint" "interface" {
   })
 }
 
-# ============================================================================
-# VPC Endpoint Policies (Least-Privilege)
-# ============================================================================
+# Endpoint policies — scope each interface endpoint to least privilege
 
-# CloudWatch Logs endpoint policy
+# CloudWatch Logs — only allow writes from this VPC
 resource "aws_vpc_endpoint_policy" "logs" {
   count = lookup(var.enable_interface_endpoints, "logs", false) ? 1 : 0
 
@@ -356,7 +351,7 @@ resource "aws_vpc_endpoint_policy" "logs" {
   })
 }
 
-# Secrets Manager endpoint policy
+# Secrets Manager — only allow RDS-managed secrets from this VPC
 resource "aws_vpc_endpoint_policy" "secretsmanager" {
   count = lookup(var.enable_interface_endpoints, "secretsmanager", false) ? 1 : 0
 
@@ -386,9 +381,7 @@ resource "aws_vpc_endpoint_policy" "secretsmanager" {
   })
 }
 
-# ============================================================================
-# EC2 Instance Connect Endpoint
-# ============================================================================
+# EC2 Instance Connect — SSH into private instances without a bastion
 
 resource "aws_security_group" "eic_endpoint" {
   count = var.enable_eic_endpoint ? 1 : 0
