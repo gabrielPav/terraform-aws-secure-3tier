@@ -159,7 +159,7 @@ module "database" {
   db_name                 = var.rds_database_name
   db_username             = var.rds_username
   db_allocated_storage    = var.rds_allocated_storage
-  multi_az                = var.environment == "production" ? true : false
+  multi_az                = var.rds_multi_az
   backup_retention_period = var.rds_backup_retention_period
 
   tags = var.common_tags

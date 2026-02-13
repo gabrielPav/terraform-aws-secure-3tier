@@ -198,9 +198,17 @@ variable "rds_database_name" {
 }
 
 variable "rds_username" {
-  description = "RDS master username"
+  description = <<-EOT
+    RDS master username for the MySQL database (REQUIRED).
+
+    Security guidelines:
+    - Avoid common names like "admin", "root", "master", or "dbadmin".
+    - Use a unique, non-guessable name.
+    - This value is marked sensitive and will not appear in CLI output.
+
+    Can also be supplied via .tfvars file.
+  EOT
   type        = string
-  default     = "dbopsadmin"
   sensitive   = true
 }
 
@@ -219,6 +227,12 @@ variable "rds_backup_retention_period" {
     condition     = var.rds_backup_retention_period >= 1 && var.rds_backup_retention_period <= 35
     error_message = "rds_backup_retention_period must be between 1 and 35 days."
   }
+}
+
+variable "rds_multi_az" {
+  description = "Enable Multi-AZ deployment for RDS (recommended for production)"
+  type        = bool
+  default     = true
 }
 
 # --- Load Balancer ---
@@ -334,7 +348,7 @@ variable "geo_restriction_locations" {
 variable "cloudwatch_log_retention_days" {
   description = "CloudWatch log retention in days"
   type        = number
-  default     = 30
+  default     = 365
 }
 
 variable "alarm_notification_email" {

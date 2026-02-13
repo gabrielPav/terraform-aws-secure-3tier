@@ -30,7 +30,7 @@ cat > /var/www/html/index.php <<'PHPEOF'
 <?php
 $config = require '/etc/app-config.php';
 
-// Fetch credentials via AWS CLI
+// Fetch credentials via AWS CLI. For testing purposes only (use AWS SDK for PHP in production)
 $command = sprintf("aws secretsmanager get-secret-value --secret-id %s --region %s --query SecretString --output text",escapeshellarg($config['db_secret_arn']),escapeshellarg($config['aws_region']));
 
 $secret_json = shell_exec($command);

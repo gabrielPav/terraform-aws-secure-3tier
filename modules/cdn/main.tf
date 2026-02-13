@@ -450,6 +450,52 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
+  # PHP-specific — blocks function injection, deserialization, stream wrapper abuse
+  rule {
+    name     = "AWSManagedRulesPHPRuleSet"
+    priority = 5
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesPHPRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project_name}-${var.environment}-waf-php"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # Linux-specific — blocks LFI, /etc/passwd traversal, /proc access
+  rule {
+    name     = "AWSManagedRulesLinuxRuleSet"
+    priority = 6
+
+    statement {
+      managed_rule_group_statement {
+        name        = "AWSManagedRulesLinuxRuleSet"
+        vendor_name = "AWS"
+      }
+    }
+
+    override_action {
+      none {}
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project_name}-${var.environment}-waf-linux"
+      sampled_requests_enabled   = true
+    }
+  }
+
   visibility_config {
     cloudwatch_metrics_enabled = true
     metric_name                = "${var.project_name}-${var.environment}-waf"
