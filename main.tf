@@ -150,6 +150,7 @@ module "database" {
   private_subnet_ids        = module.networking.private_subnet_ids
   allowed_security_group_id = module.compute.ec2_security_group_id
   kms_key_id                = module.security.kms_data_key_arn
+  kms_key_observability_arn = module.security.kms_observability_key_arn
 
   # RDS Configuration
   db_instance_class       = var.rds_instance_class

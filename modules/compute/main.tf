@@ -146,7 +146,7 @@ resource "aws_vpc_security_group_egress_rule" "ec2_http_egress" {
   from_port   = 80
   to_port     = 80
   ip_protocol = "tcp"
-  description = "Allow HTTP for updates and API calls"
+  description = "Allow HTTP for updates and API calls via NAT Gateway"
 }
 
 
@@ -158,7 +158,7 @@ resource "aws_vpc_security_group_egress_rule" "ec2_https_egress" {
   from_port   = 443
   to_port     = 443
   ip_protocol = "tcp"
-  description = "Allow HTTPS for updates and API calls"
+  description = "Allow HTTPS for updates and API calls via NAT Gateway"
 }
 
 # Outbound to RDS

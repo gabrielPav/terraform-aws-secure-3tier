@@ -365,7 +365,7 @@ resource "aws_ebs_encryption_by_default" "this" {
 # IAM role for EC2 instances
 
 resource "aws_iam_role" "ec2" {
-  name_prefix = "${var.project_name}-${var.environment}-ec2-role-"
+  name_prefix = "${var.project_name}-${var.environment}-ec2-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -644,7 +644,7 @@ resource "aws_cloudwatch_log_group" "cloudtrail" {
 
 resource "aws_iam_role" "cloudtrail_cloudwatch" {
   count       = var.enable_cloudtrail && var.enable_cloudwatch ? 1 : 0
-  name_prefix = "${var.cloudtrail_name}-cw-role-"
+  name_prefix = "${var.cloudtrail_name}-cw-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

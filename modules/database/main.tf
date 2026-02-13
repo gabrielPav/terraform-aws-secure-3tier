@@ -52,7 +52,7 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_ec2" {
 resource "aws_iam_role" "rds_enhanced_monitoring" {
   count = var.enhanced_monitoring_interval > 0 ? 1 : 0
 
-  name_prefix = "${var.project_name}-${var.environment}-rds-mon-role-"
+  name_prefix = "${var.project_name}-${var.environment}-rds-mon-"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -97,6 +97,34 @@ resource "aws_db_parameter_group" "main" {
     name  = "require_secure_transport"
     value = "1"
   }
+
+  tags = var.tags
+}
+
+# Pre-create RDS log groups so they get KMS encryption and retention.
+# If RDS creates them first, they end up unencrypted with no expiry.
+resource "aws_cloudwatch_log_group" "rds_error" {
+  name              = "/aws/rds/instance/${var.project_name}-${var.environment}-db/error"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_observability_arn
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "rds_slowquery" {
+  name              = "/aws/rds/instance/${var.project_name}-${var.environment}-db/slowquery"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_observability_arn
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_log_group" "rds_enhanced_monitoring" {
+  count = var.enhanced_monitoring_interval > 0 ? 1 : 0
+
+  name              = "RDSOSMetrics"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = var.kms_key_observability_arn
 
   tags = var.tags
 }
@@ -149,6 +177,12 @@ resource "aws_db_instance" "main" {
   auto_minor_version_upgrade = true
 
   kms_key_id = var.kms_key_id
+
+  depends_on = [
+    aws_cloudwatch_log_group.rds_error,
+    aws_cloudwatch_log_group.rds_slowquery,
+    aws_cloudwatch_log_group.rds_enhanced_monitoring,
+  ]
 
   tags = var.tags
 }
