@@ -62,6 +62,11 @@ output "cloudtrail_arn" {
   value       = var.enable_cloudtrail ? aws_cloudtrail.main[0].arn : null
 }
 
+output "ssm_session_document_name" {
+  description = "SSM Session Manager document name. Use with: aws ssm start-session --target <instance-id> --document-name <this-value>"
+  value       = var.enable_ssm ? aws_ssm_document.session_manager[0].name : null
+}
+
 output "us_east_1_kms_key_arn" {
   description = "KMS key ARN for us-east-1 resources (WAF logs, Route53 query logs). Returns the observability key when deployed to us-east-1, otherwise a dedicated us-east-1 key."
   value       = var.aws_region == "us-east-1" ? aws_kms_key.observability.arn : aws_kms_key.us_east_1[0].arn

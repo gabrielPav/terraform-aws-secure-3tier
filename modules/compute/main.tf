@@ -125,19 +125,6 @@ resource "aws_vpc_security_group_ingress_rule" "ec2_http_from_alb" {
   description = "HTTP from ALB"
 }
 
-# SSH from EIC endpoint
-resource "aws_vpc_security_group_ingress_rule" "ec2_ssh_from_eic" {
-  count = var.enable_eic_ssh_access ? 1 : 0
-
-  security_group_id            = aws_security_group.ec2.id
-  referenced_security_group_id = var.eic_security_group_id
-
-  from_port   = 22
-  to_port     = 22
-  ip_protocol = "tcp"
-  description = "SSH from EC2 Instance Connect Endpoint"
-}
-
 # Outbound HTTP (yum updates, APIs)
 resource "aws_vpc_security_group_egress_rule" "ec2_http_egress" {
   security_group_id = aws_security_group.ec2.id

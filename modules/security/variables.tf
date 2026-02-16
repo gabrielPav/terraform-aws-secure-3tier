@@ -82,6 +82,12 @@ variable "log_retention_days" {
   default     = 365
 }
 
+variable "enable_ssm" {
+  description = "Attach AmazonSSMManagedInstanceCore policy to EC2 role for SSM Session Manager access. The root module gates this on NAT gateways being enabled since the SSM agent needs outbound internet to work."
+  type        = bool
+  default     = true
+}
+
 variable "tags" {
   description = "Tags to apply"
   type        = map(string)

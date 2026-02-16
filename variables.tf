@@ -50,6 +50,12 @@ variable "number_of_availability_zones" {
   }
 }
 
+variable "enable_nat_gateway" {
+  description = "Enable NAT Gateways for outbound internet from private subnets. Needed for OS updates, external API calls, and SSM agent connectivity. Disabling this also disables SSM since the agent can't reach AWS endpoints without outbound access."
+  type        = bool
+  default     = true
+}
+
 variable "enable_vpc_endpoints" {
   description = "Map of interface VPC endpoints to enable"
   type        = map(bool)
@@ -59,8 +65,8 @@ variable "enable_vpc_endpoints" {
   }
 }
 
-variable "enable_eic_endpoint" {
-  description = "Enable EC2 Instance Connect Endpoint for secure SSH access to private instances"
+variable "enable_ssm" {
+  description = "Enable SSM Session Manager for shell access to private EC2 instances without SSH or a bastion. Requires NAT gateways — ignored if enable_nat_gateway is false."
   type        = bool
   default     = true
 }

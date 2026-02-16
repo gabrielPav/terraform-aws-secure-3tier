@@ -49,12 +49,6 @@ variable "enable_interface_endpoints" {
   default     = {}
 }
 
-variable "enable_eic_endpoint" {
-  description = "Enable EC2 Instance Connect Endpoint for secure SSH access to private instances"
-  type        = bool
-  default     = true
-}
-
 variable "flow_log_retention_days" {
   description = "Number of days to retain VPC Flow Log data in CloudWatch"
   type        = number

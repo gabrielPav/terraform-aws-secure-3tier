@@ -128,6 +128,11 @@ output "s3_bucket_name" {
   value       = module.storage.s3_bucket_name
 }
 
+output "ssm_session_document_name" {
+  description = "SSM Session Manager document name. Use with: aws ssm start-session --target <instance-id> --document-name <this-value>"
+  value       = module.security.ssm_session_document_name
+}
+
 output "cloudtrail_name" {
   description = "CloudTrail name"
   value       = module.security.cloudtrail_name
@@ -153,10 +158,3 @@ output "kms_observability_key_id" {
   value       = module.security.kms_observability_key_id
 }
 
-output "eic_endpoint_id" {
-  description = <<-EOT
-    EC2 Instance Connect Endpoint ID for SSH access to private instances.
-    Connect using: aws ec2-instance-connect ssh --instance-id <instance-id> --connection-type eice
-  EOT
-  value       = module.networking.eic_endpoint_id
-}

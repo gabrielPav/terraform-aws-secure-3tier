@@ -382,6 +382,98 @@ resource "aws_iam_role" "ec2" {
   tags = var.tags
 }
 
+# SSM Session Manager — shell into private instances without a bastion or SSH
+
+resource "aws_iam_role_policy_attachment" "ec2_ssm" {
+  count = var.enable_ssm ? 1 : 0
+
+  role       = aws_iam_role.ec2.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# Session logs — every keystroke + output, streamed to CloudWatch in real time
+resource "aws_cloudwatch_log_group" "ssm_session_logs" {
+  count = var.enable_ssm ? 1 : 0
+
+  name              = "/${var.project_name}-${var.environment}/ssm/session-logs"
+  retention_in_days = var.log_retention_days
+  kms_key_id        = aws_kms_key.observability.arn
+
+  tags = var.tags
+}
+
+# Session preferences (includes 20 min idle timeout for every session)
+resource "aws_ssm_document" "session_manager" {
+  count = var.enable_ssm ? 1 : 0
+
+  # Make the name unique per project/environment to avoid collisions
+  name            = "SSM-SessionManagerRunShell-${var.project_name}"
+  document_type   = "Session"
+  document_format = "JSON"
+
+  content = jsonencode({
+    schemaVersion = "1.0"
+    description   = "SSM Session Manager settings for ${var.project_name}-${var.environment}"
+    sessionType   = "Standard_Stream"
+    inputs = {
+      cloudWatchLogGroupName      = aws_cloudwatch_log_group.ssm_session_logs[0].name
+      cloudWatchEncryptionEnabled = false
+      cloudWatchStreamingEnabled  = true
+      idleSessionTimeout          = "20"
+      s3BucketName                = ""
+      s3KeyPrefix                 = ""
+      s3EncryptionEnabled         = false
+      kmsKeyId                    = ""
+      runAsEnabled                = false
+      shellProfile = {
+        linux   = ""
+        windows = ""
+      }
+    }
+  })
+
+  tags = var.tags
+}
+
+# Let EC2 push session logs to the encrypted log group
+resource "aws_iam_role_policy" "ec2_ssm_session_logging" {
+  count = var.enable_ssm ? 1 : 0
+
+  name = "${var.project_name}-${var.environment}-ec2-ssm-session-logging"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "SSMSessionLogsToCloudWatch"
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "${aws_cloudwatch_log_group.ssm_session_logs[0].arn}:*"
+      },
+      {
+        Sid      = "SSMSessionDescribeLogGroups"
+        Effect   = "Allow"
+        Action   = "logs:DescribeLogGroups"
+        Resource = "arn:aws:logs:*:*:log-group:*"
+      },
+      {
+        Sid    = "SSMSessionLogsKMSEncryption"
+        Effect = "Allow"
+        Action = [
+          "kms:GenerateDataKey",
+          "kms:Decrypt"
+        ]
+        Resource = aws_kms_key.observability.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "ec2_s3" {
   name = "${var.project_name}-${var.environment}-ec2-s3-policy"
   role = aws_iam_role.ec2.id

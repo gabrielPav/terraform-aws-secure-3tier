@@ -61,12 +61,11 @@ module "networking" {
   vpc_name                     = "${var.project_name}-${var.environment}-vpc"
   vpc_cidr                     = var.vpc_cidr
   number_of_availability_zones = var.number_of_availability_zones
-  enable_nat_gateway           = true
+  enable_nat_gateway           = var.enable_nat_gateway
   single_nat_gateway           = var.environment == "production" ? false : true
   enable_flow_logs             = true
   enable_s3_endpoint           = true
   enable_interface_endpoints   = var.enable_vpc_endpoints
-  enable_eic_endpoint          = var.enable_eic_endpoint
   kms_key_arn                  = module.security.kms_observability_key_arn
   tags                         = var.common_tags
 }
@@ -99,6 +98,9 @@ module "security" {
   # SNS alerts for security events
   enable_cloudtrail_sns_notifications = var.enable_cloudtrail_sns_notifications
   alarm_notification_email            = var.alarm_notification_email
+
+  # SSM agent needs outbound internet to reach AWS endpoints — no NAT, no SSM
+  enable_ssm = var.enable_nat_gateway && var.enable_ssm
 
   tags = var.common_tags
 }
@@ -192,10 +194,6 @@ module "compute" {
   # IAM
   iam_instance_profile   = module.security.ec2_instance_profile_name
   alb_security_group_ids = [module.load_balancer.alb_security_group_id]
-
-  # EIC for SSH into private instances
-  eic_security_group_id = module.networking.eic_endpoint_security_group_id
-  enable_eic_ssh_access = var.enable_eic_endpoint
 
   # Security group for RDS egress
   allowed_security_group_id = [module.database.rds_security_group_id]

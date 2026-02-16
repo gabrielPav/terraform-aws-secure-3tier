@@ -253,7 +253,7 @@ resource "aws_vpc_security_group_ingress_rule" "alb_http_redirect" {
 # (compute references this SG, so we can't reference compute's SG back)
 resource "aws_vpc_security_group_egress_rule" "alb_to_targets" {
   security_group_id = aws_security_group.alb.id
-  description       = "HTTP to targets within VPC"
+  description       = "HTTP to targets (private instances) within VPC"
 
   from_port   = 80
   to_port     = 80

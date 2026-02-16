@@ -1,4 +1,4 @@
-# Terraform AWS Secure 3-Tier Infrastructure
+# Secure 3-Tier Infrastructure with Terraform
 
 ![AWS Badge](https://img.shields.io/badge/AWS-Deployed-4EAA25.svg?style=flat&logo=amazon-aws&logoColor=white)
 ![Terraform Badge](https://img.shields.io/badge/Terraform-IaC-5c4ee5.svg?style=flat&logo=terraform&logoColor=white)
@@ -10,7 +10,7 @@ While many projects implement a standard 3-tier architecture, this one is design
 
 ## Features
 
-- **Networking**: VPC with public and private subnets across multiple AZs, NAT gateways, VPC and EIC endpoints.
+- **Networking**: VPC with public and private subnets across multiple AZs, NAT gateways, and VPC endpoints.
 - **Compute**: Auto-scaling groups with launch templates, EC2 instances with IMDSv2, encrypted EBS volumes, and stable security group rules.
 - **Storage**: S3 buckets for assets and logs with versioning, encryption, lifecycle policies, and optional cross-region replication.
 - **Database**: RDS with Multi-AZ support, encryption at rest, encryption in transit, and automated backups.
@@ -185,20 +185,29 @@ dig app.example.com
 
 ### Connect to EC2 Instances
 
-EC2 instances are deployed in private subnets without public IP addresses. This project uses **EC2 Instance Connect Endpoint (EICE)** to provide secure SSH access without requiring a bastion host, complex SSM configs, or a VPN. No SSH port (22) is exposed to the Internet, SSH access is only allowed from the EIC Endpoint's security group, all connections are authenticated via IAM, connection logs are recorded in CloudTrail.
+EC2 instances are deployed in private subnets without public IP addresses. This project uses **AWS SSM Session Manager** to provide secure shell access without requiring a bastion host, SSH keys, or open inbound ports. No SSH port (22) is exposed, all sessions are authenticated via IAM, and session activity is encrypted and logged to CloudWatch.
+
+**Session logging:** All session activity (commands and output) is streamed in real-time to a dedicated CloudWatch log group (`/<project>-<environment>/ssm/session-logs`), encrypted with the observability-layer KMS key. This project uses a custom SSM document (`SSM-SessionManagerRunShell-<project_name>`) instead of the account-wide default to avoid conflict.
 
 To connect to an instance:
 
 ```bash
-aws ec2-instance-connect ssh --instance-id <instance-id> --connection-type eice
+# Start an interactive session with CloudWatch logging
+aws ssm start-session --target <instance-id> --document-name SSM-SessionManagerRunShell-<project_name>
 ```
 
-You can also disable the EIC Endpoint if you don't need SSH access to instances, helping to achieve strict compliance.
+To verify an instance is registered with SSM:
+
+```bash
+aws ssm describe-instance-information --query "InstanceInformationList[].{Id:InstanceId,Status:PingStatus}" --output table
+```
+
+You can disable SSM Session Manager if you don't need shell access to instances, helping to achieve strict compliance.
 
 ```hcl
 # In terraform.tfvars:
 
-enable_eic_endpoint = false
+enable_ssm = false
 ```
 
 ### Destroy Infrastructure
@@ -220,7 +229,7 @@ terraform destroy
 | `environment` | Environment | `string` | `"production"` | No |
 | `aws_region` | AWS region for resources | `string` | `"us-east-1"` | No |
 | `create_route53_zone` | Create new Route53 zone (`true`) or use existing (`false`) | `bool` | `false` | No |
-| `enable_eic_endpoint` | Enable EC2 Instance Connect Endpoint for SSH access | `bool` | `true` | No |
+| `enable_ssm` | Enable SSM Session Manager for shell access to private instances | `bool` | `true` | No |
 | `enable_s3_crr` | Enable S3 cross-region replication for the assets bucket | `bool` | `false` | No |
 | `s3_replica_region` | AWS region for the S3 replica bucket | `string` | `"us-west-2"` | No |
 | `enable_s3_object_lock` | Enable S3 Object Lock on the assets bucket | `bool` | `false` | No |
@@ -240,8 +249,8 @@ See `variables.tf` for the complete list of available variables.
 | `kms_compute_key_id` | KMS key ID for the compute layer (EBS, Auto Scaling) |
 | `kms_storage_key_id` | KMS key ID for the storage layer (S3, CloudFront) |
 | `kms_observability_key_id` | KMS key ID for the observability layer (CloudTrail, CloudWatch, SNS) |
-| `eic_endpoint_id` | EC2 Instance Connect Endpoint ID for SSH access |
 | `cloudtrail_name` | Name of CloudTrail trail used for logging |
+| `ssm_session_document_name` | Name of SSM Session Manager config document |
 
 ## Implemented Security Best Practices
 
@@ -275,7 +284,7 @@ See `variables.tf` for the complete list of available variables.
 - EC2 instance profile with minimal permissions
 - Secrets Manager integration for RDS credentials (no hardcoded passwords)
 - No long-lived IAM user credentials used
-- EC2 Instance Connect Endpoint for SSH (IAM-authenticated, no bastion host)
+- SSM Session Manager for shell access (IAM-authenticated, no bastion host, no SSH keys)
 - Trust policies scoped to specific services and accounts
 
 ### Instance Hardening:
@@ -284,7 +293,7 @@ See `variables.tf` for the complete list of available variables.
 - SSM agent enabled for patching and session access
 - Only verified Amazon Linux 2 AMIs used
 - Termination protection enabled in production
-- No inbound SSH from the Internet (only via EICE/SSM)
+- No inbound SSH from the Internet (shell access via SSM Session Manager only)
 
 ### Transport Security:
 
@@ -317,6 +326,7 @@ See `variables.tf` for the complete list of available variables.
 - ALB access logs enabled
 - VPC Flow Logs to CloudWatch
 - CloudTrail integrated with CloudWatch alerts for anomalous behavior and IAM/VPC/S3/KMS changes
+- SSM Session Manager logging to CloudWatch (real-time streaming, KMS-encrypted)
 - WAF logging enabled with sensitive field redaction (Authorization, cookies) and filtered to security events only
 - Log integrity monitoring and access control enforced
 

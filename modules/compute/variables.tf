@@ -124,18 +124,6 @@ variable "alb_security_group_ids" {
   default     = []
 }
 
-variable "eic_security_group_id" {
-  description = "EC2 Instance Connect Endpoint security group ID for SSH access"
-  type        = string
-  default     = null
-}
-
-variable "enable_eic_ssh_access" {
-  description = "Enable SSH access from EC2 Instance Connect Endpoint"
-  type        = bool
-  default     = false
-}
-
 variable "health_check_path" {
   description = "Health check path for the target group"
   type        = string
