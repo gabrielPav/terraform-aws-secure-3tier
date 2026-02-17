@@ -8,6 +8,8 @@ This project automates the deployment of a secure, highly available, production-
 
 While many projects implement a standard 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete AWS environment using a defense-in-depth strategy, best-practice guardrails, zero-trust least-privilege access, end-to-end encryption, and auditable configurations to support real-world deployments.
 
+![Infrastructure Diagram](assets/diagram.png)
+
 ## Features
 
 - **Networking**: VPC with public and private subnets across multiple AZs, NAT gateways, and VPC endpoints.
@@ -153,10 +155,10 @@ Outputs:
 
 route53_zone_created = true
 route53_name_servers = [
-  "ns-123.awsdns-45.com",
-  "ns-678.awsdns-90.net",
-  "ns-111.awsdns-22.org",
-  "ns-333.awsdns-44.co.uk",
+  "ns-aaa.awsdns-10.com",
+  "ns-bbb.awsdns-20.net",
+  "ns-ccc.awsdns-30.org",
+  "ns-ddd.awsdns-40.co.uk",
 ]
 ```
 
@@ -192,14 +194,7 @@ EC2 instances are deployed in private subnets without public IP addresses. This 
 To connect to an instance:
 
 ```bash
-# Start an interactive session with CloudWatch logging
 aws ssm start-session --target <instance-id> --document-name SSM-SessionManagerRunShell-<project_name>
-```
-
-To verify an instance is registered with SSM:
-
-```bash
-aws ssm describe-instance-information --query "InstanceInformationList[].{Id:InstanceId,Status:PingStatus}" --output table
 ```
 
 You can disable SSM Session Manager if you don't need shell access to instances, helping to achieve strict compliance.
