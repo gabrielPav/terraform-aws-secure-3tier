@@ -3,12 +3,13 @@
 ![AWS Badge](https://img.shields.io/badge/AWS-Deployed-4EAA25.svg?style=flat&logo=amazon-aws&logoColor=white)
 ![Terraform Badge](https://img.shields.io/badge/Terraform-IaC-5c4ee5.svg?style=flat&logo=terraform&logoColor=white)
 
-
 This project automates the deployment of a secure, highly available, production-ready 3-tier architecture on AWS cloud using Terraform.
 
-While many projects implement a standard 3-tier architecture, this one is designed with security and compliance as first-class concerns from the start. It provisions a complete AWS environment using a defense-in-depth strategy, best-practice guardrails, zero-trust least-privilege access, end-to-end encryption, and auditable configurations to support real-world deployments.
+Unlike typical 3-tier projects, this one prioritizes security and compliance from the start, provisioning a full AWS cloud environment with defense-in-depth, zero-trust least-privilege access, customer-managed encryption, and auditable configurations for real-world deployments.
 
-![Infrastructure Diagram](assets/diagram.png)
+## Architecture Diagram
+
+![AWS Diagram](assets/diagram.png)
 
 ## Features
 
