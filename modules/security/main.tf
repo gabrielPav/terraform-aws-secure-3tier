@@ -669,6 +669,18 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
         Condition = {
           Bool = { "aws:SecureTransport" = "false" }
         }
+      },
+      {
+        Sid       = "DenyNonKMSEncryptedUploads"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.cloudtrail[0].arn}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "aws:kms"
+          }
+        }
       }
     ]
   })

@@ -155,6 +155,18 @@ resource "aws_s3_bucket_policy" "cloudfront_oac" {
         Condition = {
           Bool = { "aws:SecureTransport" = "false" }
         }
+      },
+      {
+        Sid       = "DenyNonKMSEncryptedUploads"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "arn:aws:s3:::${var.s3_bucket_id}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "aws:kms"
+          }
+        }
       }
     ]
   })

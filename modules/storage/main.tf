@@ -254,6 +254,18 @@ resource "aws_s3_bucket_policy" "main" {
         Condition = {
           Bool = { "aws:SecureTransport" = "false" }
         }
+      },
+      {
+        Sid       = "DenyNonKMSEncryptedUploads"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.main.arn}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "aws:kms"
+          }
+        }
       }
     ]
   })
@@ -459,6 +471,18 @@ resource "aws_s3_bucket_policy" "replica" {
         ]
         Condition = {
           Bool = { "aws:SecureTransport" = "false" }
+        }
+      },
+      {
+        Sid       = "DenyNonKMSEncryptedUploads"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.replica[0].arn}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption" = "aws:kms"
+          }
         }
       }
     ]
