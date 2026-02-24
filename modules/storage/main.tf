@@ -266,6 +266,18 @@ resource "aws_s3_bucket_policy" "main" {
             "s3:x-amz-server-side-encryption" = "aws:kms"
           }
         }
+      },
+      {
+        Sid       = "DenyIncorrectKMSKey"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.main.arn}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption-aws-kms-key-id" = var.kms_key_arn
+          }
+        }
       }
     ]
   })
@@ -482,6 +494,18 @@ resource "aws_s3_bucket_policy" "replica" {
         Condition = {
           StringNotEquals = {
             "s3:x-amz-server-side-encryption" = "aws:kms"
+          }
+        }
+      },
+      {
+        Sid       = "DenyIncorrectKMSKey"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:PutObject"
+        Resource  = "${aws_s3_bucket.replica[0].arn}/*"
+        Condition = {
+          StringNotEquals = {
+            "s3:x-amz-server-side-encryption-aws-kms-key-id" = aws_kms_key.replica[0].arn
           }
         }
       }

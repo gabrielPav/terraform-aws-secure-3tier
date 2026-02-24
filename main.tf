@@ -267,6 +267,7 @@ module "cdn" {
   s3_bucket_id              = module.storage.s3_bucket_name
   s3_bucket_domain_name     = module.storage.s3_bucket_domain_name
   s3_access_logs_bucket_arn = module.storage.s3_access_logs_bucket_arn
+  s3_kms_key_arn            = module.security.kms_storage_key_arn
 
   # CloudFront Configuration
   enable_cloudfront  = var.enable_cloudfront

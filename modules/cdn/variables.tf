@@ -28,6 +28,11 @@ variable "s3_bucket_id" {
   type        = string
 }
 
+variable "s3_kms_key_arn" {
+  description = "KMS key ARN for S3 bucket encryption. Used in bucket policy to deny uploads encrypted with a different KMS key."
+  type        = string
+}
+
 variable "enable_cloudfront" {
   description = "Enable CloudFront"
   type        = bool
